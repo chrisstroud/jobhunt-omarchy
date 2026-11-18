@@ -4,21 +4,27 @@
  "time_zone": "America/Los_Angeles",
  "time_zone_saved": true,
  "account": {
-  "id": "x",
+  "id": "00000000-0000-4000-8000-000000000001",
   "name": "Sample Person"
  },
  "setup": [],
  "setup_complete": true,
- "access": null,
+ "access": {
+  "kind": "trial",
+  "ends_at": "2026-11-25T08:00:00Z",
+  "ends_on": "2026-11-25",
+  "days_left": 7,
+  "next": "On 2026-11-25 the account becomes read-only: saved work can still be viewed and exported, and changes need a subscription, described at https://jobhunt.example/pricing; mention this only when the person asks about cost or access, or once when 3 days or fewer remain."
+ },
  "hunt": {
-  "id": "h1",
-  "name": "Spring search",
+  "id": "sample-hunt",
+  "name": "Sample Hunt",
   "status": "active"
  },
  "stages": [
   {
    "name": "To Apply",
-   "type": "to_apply",
+   "type": "saved",
    "jobs": 6,
    "final": false
   },
@@ -30,7 +36,7 @@
   },
   {
    "name": "Interviewing",
-   "type": "interviewing",
+   "type": "interview",
    "jobs": 2,
    "final": false
   },
@@ -58,8 +64,14 @@
   "total": 0
  },
  "applied": {
-  "jobs": [],
-  "total": 9
+  "jobs": [
+   {
+    "company": "Example Co",
+    "title": "Sample Engineer",
+    "stage_days": 4
+   }
+  ],
+  "total": 2
  },
  "offers": {
   "jobs": [],
@@ -69,9 +81,17 @@
   "jobs": [],
   "total": 0
  },
- "covers": "Sample.",
- "not_included": {},
- "resume": null,
+ "covers": "Stage counts; tasks overdue or due by 2026-11-25; interviews 2026-11-18 to 2026-11-25; Applied and offer jobs, longest in stage first; links being read. Only what JobHunt recorded: email and calendars are not read, so nothing recorded is not the same as nothing happened.",
+ "not_included": {
+  "tasks with no due date": "list_tasks",
+  "contacts and conversations": "list_contacts",
+  "documents": "list_documents",
+  "jobs in other stages": "list_jobs"
+ },
+ "resume": {
+  "id": "00000000-0000-4000-8000-0000000000b1",
+  "name": "Sample resume"
+ },
  "missing": [],
- "website_url": "https://jobhunt.app/app"
+ "website_url": "https://jobhunt.example/app"
 }

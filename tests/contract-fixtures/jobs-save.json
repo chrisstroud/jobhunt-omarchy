@@ -1,0 +1,15 @@
+{
+  "ok": true,
+  "already_saved": false,
+  "job": {
+    "id": "00000000-0000-4000-8000-0000000000c1",
+    "title": null,
+    "company": null,
+    "stage": "To Apply",
+    "stage_type": "saved",
+    "url": "https://jobs.example/postings/123",
+    "revision": 1
+  },
+  "details_pending": true,
+  "next": "The job is saved; its details are still being read from the link, which fills in the title, company and posting text. Call get_job later to see what it found."
+}

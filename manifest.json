@@ -5,7 +5,7 @@
   "version": "0.1.0",
   "author": "JobHunt",
   "license": "MIT",
-  "description": "See what needs you today in your job search, and your streak, right from the bar.",
+  "description": "See what needs you today in your job search, and your recorded activity, right from the bar.",
   "kinds": ["bar-widget"],
   "activation": "on-demand",
   "entryPoints": {
@@ -13,7 +13,7 @@
   },
   "barWidget": {
     "displayName": "JobHunt",
-    "description": "One quiet number for the interviews and tasks due today, and a panel with today's items, your streak, your pipeline and hand-offs to your own agent. Needs the JobHunt command line tool and an account at jobhunt.app.",
+    "description": "One quiet number for the interviews and tasks due today, and a panel with today's items, your recorded activity, your pipeline and hand-offs to your own agent. Needs the JobHunt command line tool and an account at jobhunt.app.",
     "category": "Productivity",
     "aliases": ["jobhunt", "job", "jobs", "hunt", "interviews", "applications"],
     "allowMultiple": false,

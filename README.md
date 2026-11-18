@@ -1,6 +1,6 @@
 # JobHunt for Omarchy
 
-See what needs you today in your job search, and your streak, right from the Omarchy bar.
+See what needs you today in your job search, and your recorded activity, right from the Omarchy bar.
 
 JobHunt needs an account at jobhunt.app. This plugin reads your data through the JobHunt command line tool; it does not talk to JobHunt itself.
 
@@ -14,8 +14,8 @@ Version 0.1.0 (first build, not yet listed anywhere).
 
 **Panel (click the icon):**
 
-- **Today:** the due items, soonest first. Click one to open it on jobhunt.app. Tasks tied to a job (and interviews, once JobHunt reports the job id for them) have a button that hands a request to your own terminal agent ("Tailor my resume for this job", "Prep me for this interview"). The exact request is shown first and nothing is sent until you confirm. A short "Later this week" list follows.
-- **Streak:** your current streak in days and a year of activity, drawn in the Omarchy theme's accent colour.
+- **Today:** the due items, soonest first. Click one to open it on jobhunt.app. Tasks tied to a job have a button that hands a request to your own terminal agent ("Tailor my resume for this job"). The exact request is shown first and nothing is sent until you confirm. A short "Later this week" list follows.
+- **Momentum:** a year of recorded activity as a graph in the Omarchy theme's accent colour, with the plain totals (recorded actions and days with activity). JobHunt counts what was recorded and shows no scores or ranks.
 - **Pipeline:** counts for each stage JobHunt reports. Stage names are never built in.
 - **Actions:** "Save job from clipboard" (reads a web link from the clipboard, shows it, and saves only after you confirm), "What should I do next?" (a request to your agent), and "Open JobHunt".
 - **Hide company names:** for shared screens. Names are left out of the panel and the bar tooltip. (Requests to your agent never contain names.)
@@ -33,10 +33,10 @@ omarchy plugin add <repository-url> --enable
 
 ```
 npm i -g jobhunt
-jobhunt auth login
+jobhunt auth login --scopes read:profile,read:applications,write:applications,read:campaigns,read:companies,read:contacts,read:documents,read:interviews,read:tasks,read:analytics
 ```
 
-Optional, to let Claude Code use JobHunt too (this plugin does not run it for you):
+(`write:applications` is used only to save a link you confirm; the rest are reads.) Optional, to let Claude Code use JobHunt too (this plugin does not run it for you):
 
 ```
 claude mcp add --transport http jobhunt https://jobhunt.app/mcp
@@ -67,7 +67,8 @@ Open the widget's settings in Omarchy, or use the toggle in the panel.
 ## Troubleshooting
 
 - **Icon is dim, panel says the command is not installed:** run `npm i -g jobhunt`. If it is installed somewhere the shell does not see, set "JobHunt command path".
-- **Signed out:** run `jobhunt auth login`, then press "Check again".
+- **Signed out:** run the sign-in command shown in the panel, then press "Check again".
+- **Rate limited:** the panel says JobHunt asked for a short pause and keeps the last data; the plugin waits the time JobHunt gave before reading again. It never reads more than once a minute.
 - **Offline:** the panel shows the last data it read and how old it is.
 - **Something unexpected:** run `jobhunt overview --json` in a terminal. If that works, update the plugin; the helper may need to learn a changed output shape.
 - **Try the helper without the real command:** `JOBHUNT_OMARCHY_FIXTURE=fixtures/busy-day python3 helper/jobhunt_omarchy.py snapshot`
@@ -87,10 +88,10 @@ The code is MIT licensed (see LICENSE). The emblem is JobHunt's mark and is incl
 ## Open questions
 
 - The app paths used for row links (`/app/applications/id/<uuid>`, `/app/tasks`, `/app/interviews`) are unconfirmed: they were read from the product source, not tried against jobhunt.app.
-- The overview does not report a job id on interview rounds, so interview rows have no "Prep me" button until it does.
+- The overview does not report a job id on interview rounds, so interview rows have no agent button until it does.
 - The plugin id (`jobhunt.app`) and licence holder may change before listing.
 - Strings are English only.
 
 ## Development
 
-Python 3 standard library only. `tests/run.sh` runs the helper tests against every fixture in `fixtures/` (invented data), the Omarchy manifest validator and qmllint. `tests/make_fixtures.py` regenerates the fixtures.
+Python 3 standard library only. `tests/run.sh` runs the helper tests against every fixture in `fixtures/` (invented data), the Omarchy manifest validator, a check that every property used on an Omarchy component exists, and qmllint. `tests/make_fixtures.py` regenerates the fixtures.

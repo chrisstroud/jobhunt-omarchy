@@ -24,7 +24,7 @@ omarchy plugin add ~/Developer/jobhunt-omarchy --enable
 | --- | --- | --- |
 | CLI not installed | Dim JobHunt mark, no number. Tooltip: "JobHunt: command not installed". | "SET UP" with the install and sign-in commands, the optional Claude Code command, copy buttons, "Check again". |
 | Not signed in | Dim mark, no number. Tooltip: "JobHunt: signed out". | "SET UP" with `jobhunt auth login`. |
-| Signed in, nothing due | Bright mark, no number. | "Nothing due today.", streak, pipeline, actions. |
+| Signed in, nothing due | Bright mark, no number. | "Nothing due today.", momentum, pipeline, actions. |
 | Items due | Mark plus one number, in the bar's normal text colour (not the alarm colour). | Today rows soonest first, then "Later this week". Clicking a row opens jobhunt.app in the browser. |
 | Offline after a good read | Dimmed mark and number. | A tinted note: could not reach JobHunt, with the age of the data shown; the data is still listed. |
 | Unexpected answer | "!" beside the mark when there is no older data. | A tinted note: JobHunt returned something unexpected. |
@@ -35,14 +35,17 @@ Each scenario folder in `fixtures/` holds a stand-in `jobhunt` program that answ
 
 | State | Set "JobHunt command path" to |
 | --- | --- |
-| Items due, streak, pipeline | `/home/chrisstroud/Developer/jobhunt-omarchy/fixtures/busy-day/jobhunt` |
+| Items due, momentum, pipeline | `/home/chrisstroud/Developer/jobhunt-omarchy/fixtures/busy-day/jobhunt` |
 | Nothing due (no number) | `.../fixtures/nothing-due/jobhunt` |
 | A full year of activity | `.../fixtures/year-of-activity/jobhunt` |
 | Signed out | `.../fixtures/signed-out/jobhunt` |
+| The CLI's own example files, verbatim | `.../fixtures/contract/jobhunt` |
+| Signed out by a revoked connection (exit 3) | `.../fixtures/revoked/jobhunt` |
+| Rate limited, older data kept | busy-day once, then `.../fixtures/rate-limited/jobhunt` (a pause note; no new read for 2 minutes) |
 | Offline with older data | first use busy-day and let it load once, then switch to `.../fixtures/stale-offline/jobhunt` (it fails like a lost connection; the cache from the first read is shown with its age) |
 | CLI not installed | clear the setting while no real `jobhunt` is installed (the usual state at first install); if one is installed, temporarily rename it |
 
-When you are done, clear the setting and delete `~/.cache/jobhunt-omarchy` (the fixture reads are cached like real ones). The fixture data is invented and fixed to 17 November 2026, so "today" in the panel is that day, whatever the real date. In busy-day, only the first interview ("Panel interview") carries a job id, so only it has a "Prep me" button.
+Reads are limited to one a minute (the CLI contract's request), so pressing refresh again straight away does nothing; changing the path always reads. When you are done, clear the setting and delete `~/.cache/jobhunt-omarchy` (the fixture reads are cached like real ones). The fixture data is invented and fixed to 17 November 2026, so "today" in the panel is that day, whatever the real date. Tasks with a job id (busy-day) have a "Tailor my resume" button; interviews have none, because the contract gives them no id.
 
 The same data can be read in a terminal: `JOBHUNT_OMARCHY_FIXTURE=fixtures/busy-day python3 helper/jobhunt_omarchy.py snapshot | jq .` and `tests/run.sh` covers every scenario.
 
@@ -58,7 +61,7 @@ The same data can be read in a terminal: `JOBHUNT_OMARCHY_FIXTURE=fixtures/busy-
 8. Copy buttons put the exact command on the clipboard.
 9. "Open links" in settings: Browser tab versus Web app window.
 10. Turn off "Refresh in the background" in settings: the bar number should then change only after you open the panel or press refresh.
-11. No emoji, score, rank or pressure wording anywhere; the streak reads "Current streak: N days".
+11. No emoji, score, rank or pressure wording anywhere; the Momentum section reads "N recorded actions on M days, in the last N days." with no streak anywhere.
 
 ## 5. Remove
 

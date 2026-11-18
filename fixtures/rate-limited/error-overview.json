@@ -1,0 +1,7 @@
+{
+ "error": {
+  "code": "rate_limited",
+  "status": 429,
+  "retry_after_seconds": 120
+ }
+}

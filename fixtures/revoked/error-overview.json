@@ -1,0 +1,6 @@
+{
+ "error": {
+  "code": "authentication_required",
+  "status": 401
+ }
+}

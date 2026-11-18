@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "invalid_input",
+    "status": 422,
+    "message": "url: use a public https link to the posting."
+  }
+}

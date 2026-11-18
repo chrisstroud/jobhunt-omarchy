@@ -18,7 +18,7 @@ Panel {
   readonly property bool vertical: bar ? bar.vertical : false
 
   readonly property string cmdInstall: "npm i -g jobhunt"
-  readonly property string cmdLogin: "jobhunt auth login"
+  readonly property string cmdLogin: "jobhunt auth login --scopes read:profile,read:applications,write:applications,read:campaigns,read:companies,read:contacts,read:documents,read:interviews,read:tasks,read:analytics"
   readonly property string cmdMcp: "claude mcp add --transport http jobhunt https://jobhunt.app/mcp"
   readonly property string promptNext: "In JobHunt, tell me what I should do next. Do not change anything."
 
@@ -408,32 +408,25 @@ Panel {
             }
           }
 
-          // ---- Streak ----
+          // ---- Momentum ----
           Column {
             visible: !root.needsSetup && jobhunt.hasData
             width: parent.width
             spacing: Style.space(8)
             PanelSeparator { foreground: root.foreground }
-            PanelSectionHeader { width: parent.width; text: "STREAK"; foreground: root.foreground; fontFamily: root.fontFamily }
+            PanelSectionHeader { width: parent.width; text: "MOMENTUM"; foreground: root.foreground; fontFamily: root.fontFamily }
             Text {
               width: parent.width
               textFormat: Text.PlainText
+              wrapMode: Text.WordWrap
               color: root.foreground
               font.family: root.fontFamily
-              font.pixelSize: Style.font.body
-              text: jobhunt.streak.available ? "Current streak: " + root.plural(Number(jobhunt.streak.current_days) || 0, "day", "days") : "Activity is not available right now."
+              font.pixelSize: Style.font.bodySmall
+              text: jobhunt.momentum.available
+                ? root.plural(Number(jobhunt.momentum.recorded_actions) || 0, "recorded action", "recorded actions") + " on " + root.plural(Number(jobhunt.momentum.active_days) || 0, "day", "days") + ", in the last " + root.plural(Number(jobhunt.momentum.window_days) || 0, "day", "days") + "."
+                : "Activity is not available right now."
             }
-            ActivityGraph { visible: jobhunt.streak.available; weeks: jobhunt.streak.weeks }
-            Text {
-              visible: jobhunt.streak.available
-              width: parent.width
-              textFormat: Text.PlainText
-              horizontalAlignment: Text.AlignHCenter
-              color: root.dim
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.caption
-              text: root.plural(Number(jobhunt.streak.total_actions) || 0, "action", "actions") + " on " + root.plural(Number(jobhunt.streak.active_days) || 0, "day", "days") + " in the last year"
-            }
+            ActivityGraph { visible: jobhunt.momentum.available; weeks: jobhunt.momentum.weeks }
           }
 
           // ---- Pipeline ----
@@ -642,7 +635,7 @@ Panel {
     id: dueRow
     property var row: ({})
     readonly property string subject: [String(row.job_title || ""), String(row.company || "")].filter(function(part) { return part !== "" }).join(" · ")
-    readonly property string prompt: row.kind === "interview" ? String((row.prompts || {}).prep || "") : String((row.prompts || {}).tailor || "")
+    readonly property string prompt: String((row.prompts || {}).tailor || "")
     width: parent ? parent.width : 0
     implicitHeight: rowColumn.implicitHeight + Style.space(12)
 
@@ -687,7 +680,7 @@ Panel {
       }
       Button {
         visible: dueRow.prompt !== ""
-        text: dueRow.row.kind === "interview" ? "Prep me for this interview" : "Tailor my resume for this job"
+        text: "Tailor my resume for this job"
         bordered: true
         foreground: root.foreground
         fontFamily: root.fontFamily

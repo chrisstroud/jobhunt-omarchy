@@ -17,11 +17,18 @@ Item {
   property bool hasData: false
   property bool stale: false
   property string fetchedAt: ""
-  property var due: []
+  property var rawDue: []
+  // Company names are blanked here, in the view, so the toggle applies at once without another read.
+  readonly property var due: hideCompany ? rawDue.map(function(row) {
+    var copy = {}
+    for (var key in row) copy[key] = row[key]
+    copy.company = ""
+    return copy
+  }) : rawDue
   property int dueCount: 0
   property var pipeline: []
   property int jobsTotal: 0
-  property var streak: ({ available: false, current_days: 0, total_actions: 0, active_days: 0, weeks: [] })
+  property var momentum: ({ available: false, window_days: 0, recorded_actions: 0, active_days: 0, weeks: [] })
 
   // Save from clipboard: idle | reading | confirm | saving | done | failed
   property string saveState: "idle"
@@ -38,9 +45,13 @@ Item {
   property string _clipOut: ""
   property string _saveOut: ""
   property bool refreshQueued: false
+  // The contract asks for no more than one status or overview read a minute, and a rate-limit answer says when to resume.
+  property double lastStartMs: 0
+  property double notBeforeMs: 0
+  property int retryAfterSec: 0
 
   onHideCompanyChanged: if (settingsReady) refresh()
-  onCliPathChanged: if (settingsReady) refresh()
+  onCliPathChanged: if (settingsReady) refresh(true)
 
   function setting(name, fallback) {
     var value = settings ? settings[name] : undefined
@@ -72,14 +83,18 @@ Item {
     if (backgroundRefresh) refresh()
   }
 
-  function refresh() {
+  function refresh(force) {
     if (!settingsReady) return
+    var now = Date.now()
+    if (now < notBeforeMs) return
+    if (force !== true && now - lastStartMs < 60000) return
     if (snapshotProcess.running) { refreshQueued = true; return }
     refreshQueued = false
+    lastStartMs = now
     loading = true
     _snapshotOut = ""
     // argv only: nothing from settings or from JobHunt is ever read by a shell.
-    snapshotProcess.command = ["python3", helperPath(), "snapshot"].concat(hideCompany ? ["--hide-company"] : []).concat(cliArgs())
+    snapshotProcess.command = ["python3", helperPath(), "snapshot"].concat(cliArgs())
     snapshotProcess.running = true
   }
 
@@ -92,15 +107,17 @@ Item {
       return
     }
     dataState = doc.state
+    retryAfterSec = Number(doc.retry_after_seconds) || 0
+    notBeforeMs = dataState === "rate_limited" ? Date.now() + Math.max(retryAfterSec, 60) * 1000 : 0
     message = String(doc.message || "")
     hasData = doc.has_data === true
     stale = doc.stale === true
     fetchedAt = String(doc.fetched_at || "")
-    due = Array.isArray(doc.due) ? doc.due : []
+    rawDue = Array.isArray(doc.due) ? doc.due : []
     dueCount = Number(doc.due_count) || 0
     pipeline = Array.isArray(doc.pipeline) ? doc.pipeline : []
     jobsTotal = Number(doc.jobs_total) || 0
-    streak = doc.streak && Array.isArray(doc.streak.weeks) ? doc.streak : { available: false, current_days: 0, total_actions: 0, active_days: 0, weeks: [] }
+    momentum = doc.momentum && Array.isArray(doc.momentum.weeks) ? doc.momentum : { available: false, window_days: 0, recorded_actions: 0, active_days: 0, weeks: [] }
   }
 
   // The clipboard is read only when the person asks, shown, and saved only after a second click.
@@ -127,10 +144,13 @@ Item {
     saveProcess.running = true
   }
 
-  function failureText(reason) {
-    if (reason === "signed_out") return "You are signed out of JobHunt."
-    if (reason === "cli_missing") return "The JobHunt command is not installed."
-    if (reason === "failed") return "Could not reach JobHunt. Nothing was saved."
+  function failureText(reason, message) {
+    if (reason === "signed_out") return "You are signed out of JobHunt. Nothing was saved."
+    if (reason === "cli_missing") return "The JobHunt command is not installed. Nothing was saved."
+    if (reason === "unreachable") return "Could not reach JobHunt. Nothing was saved."
+    if (reason === "rate_limited") return "JobHunt asked for a short pause. Nothing was saved; try again in a minute."
+    if (reason === "permission") return "This connection may not save jobs. Sign in again with the command in setup. Nothing was saved."
+    if (reason === "refused") return "JobHunt did not save it" + (message ? ": " + message : ".")
     return "Nothing was saved."
   }
 
@@ -185,13 +205,17 @@ Item {
       if (doc && doc.ok === true) {
         const job = doc.job || {}
         const name = [String(job.title || ""), root.hideCompany ? "" : String(job.company || "")].filter(function(part) { return part !== "" }).join(" at ")
+        var text = doc.already_saved === true ? "Already saved in JobHunt" : "Saved to " + (String(job.stage || "") || "JobHunt")
+        if (name !== "") text += ": " + name
+        text += "."
+        if (doc.details_pending === true) text += " The title and company are still being read from the link."
         root.saveState = "done"
-        root.saveMessage = name !== "" ? "Saved: " + name : "Saved to JobHunt."
+        root.saveMessage = text
         root.saveUrl = ""
-        root.refresh()
+        root.refresh(true)
       } else {
         root.saveState = "failed"
-        root.saveMessage = root.failureText(doc ? String(doc.reason || "") : "")
+        root.saveMessage = root.failureText(doc ? String(doc.reason || "") : "", doc ? String(doc.message || "") : "")
       }
     }
   }

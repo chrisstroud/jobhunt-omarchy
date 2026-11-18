@@ -1,0 +1,109 @@
+{
+  "ok": true,
+  "today": "2026-11-18",
+  "time_zone": "America/Los_Angeles",
+  "time_zone_saved": true,
+  "account": {
+    "id": "00000000-0000-4000-8000-000000000001",
+    "name": "Sample Person"
+  },
+  "setup": [],
+  "setup_complete": true,
+  "access": {
+    "kind": "trial",
+    "ends_at": "2026-11-25T08:00:00Z",
+    "ends_on": "2026-11-25",
+    "days_left": 7,
+    "next": "On 2026-11-25 the account becomes read-only: saved work can still be viewed and exported, and changes need a subscription, described at https://jobhunt.example/pricing; mention this only when the person asks about cost or access, or once when 3 days or fewer remain."
+  },
+  "hunt": {
+    "id": "sample-hunt",
+    "name": "Sample Hunt",
+    "status": "active"
+  },
+  "stages": [
+    {
+      "name": "To Apply",
+      "type": "saved",
+      "jobs": 3,
+      "final": false
+    },
+    {
+      "name": "Applied",
+      "type": "applied",
+      "jobs": 2,
+      "final": false
+    },
+    {
+      "name": "Interview",
+      "type": "interview",
+      "jobs": 1,
+      "final": false
+    }
+  ],
+  "jobs_total": 6,
+  "tasks": {
+    "overdue": [
+      {
+        "id": "00000000-0000-4000-8000-0000000000a1",
+        "title": "Send a thank-you note",
+        "due": "2026-11-16",
+        "job_id": null,
+        "due_days": 2
+      }
+    ],
+    "due_in_next_7_days": [
+      {
+        "id": "00000000-0000-4000-8000-0000000000a2",
+        "title": "Update the sample resume",
+        "due": "2026-11-20",
+        "job_id": null,
+        "due_in_days": 2
+      }
+    ],
+    "complete": true
+  },
+  "interviews": {
+    "rounds": [
+      {
+        "round": "Phone screen",
+        "scheduled_at": "2026-11-19T17:00:00Z",
+        "on": "2026-11-19",
+        "company": "Example Co",
+        "title": "Sample Engineer"
+      }
+    ],
+    "total": 1
+  },
+  "applied": {
+    "jobs": [
+      {
+        "company": "Example Co",
+        "title": "Sample Engineer",
+        "stage_days": 4
+      }
+    ],
+    "total": 2
+  },
+  "offers": {
+    "jobs": [],
+    "total": 0
+  },
+  "reading_link": {
+    "jobs": [],
+    "total": 0
+  },
+  "covers": "Stage counts; tasks overdue or due by 2026-11-25; interviews 2026-11-18 to 2026-11-25; Applied and offer jobs, longest in stage first; links being read. Only what JobHunt recorded: email and calendars are not read, so nothing recorded is not the same as nothing happened.",
+  "not_included": {
+    "tasks with no due date": "list_tasks",
+    "contacts and conversations": "list_contacts",
+    "documents": "list_documents",
+    "jobs in other stages": "list_jobs"
+  },
+  "resume": {
+    "id": "00000000-0000-4000-8000-0000000000b1",
+    "name": "Sample resume"
+  },
+  "missing": [],
+  "website_url": "https://jobhunt.example/app"
+}

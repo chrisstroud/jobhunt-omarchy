@@ -22,6 +22,9 @@ fi
 step "no symlinks, no secrets-shaped files"
 if find . -name .git -prune -o -type l -print | grep -q .; then echo "symlink found"; fail=1; else echo ok; fi
 
+step "Omarchy component properties (every property assigned on a qs.Ui type must be declared there)"
+if [ -d /usr/share/omarchy/shell/Ui ]; then python3 tests/check_ui_props.py || fail=1; else echo "skipped: Omarchy Ui files not found"; fi
+
 step "qmllint (errors and syntax only; Omarchy's own imports are linked from /usr/share/omarchy/shell)"
 QMLLINT=/usr/lib/qt6/bin/qmllint
 if [ -x "$QMLLINT" ] && [ -d /usr/share/omarchy/shell/Ui ]; then

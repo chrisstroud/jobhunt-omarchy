@@ -47,7 +47,6 @@ UUID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]
 DAY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 INSTANT_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$")
 CLOSED_INTERVIEW = {"cancelled", "canceled", "completed", "done", "passed", "no_show"}
-AUTH_CODES = {"authentication_required", "account_changed", "not_signed_in", "signed_out"}
 EXTRA_CLI_DIRS = (
     "~/.local/bin",
     "~/.npm-global/bin",
@@ -244,18 +243,30 @@ def find_cli(explicit=""):
 FIXTURE_FILES = {"status": "status.json", "overview": "overview.json", "activity": "activity.json", "save": "jobs-save.json"}
 
 
+def read_small(path):
+    try:
+        with open(path, encoding="utf-8") as handle:
+            return handle.read(MAX_OUTPUT + 1)
+    except OSError:
+        return None
+
+
 def run_fixture(kind):
+    """Fixture mode. error-<kind>.json (+ optional error-<kind>.code) plays a failure like the real CLI."""
     fixture = fixture_dir()
     if os.path.exists(os.path.join(fixture, "cli-missing")):
-        return "missing", None
-    if kind in ("overview", "activity", "save") and os.path.exists(os.path.join(fixture, "offline")):
-        return "failed", None
-    try:
-        with open(os.path.join(fixture, FIXTURE_FILES[kind]), encoding="utf-8") as handle:
-            raw = handle.read(MAX_OUTPUT + 1)
-    except OSError:
-        return "failed", None
-    return parse_output(raw)
+        return "missing", None, 0
+    failure = read_small(os.path.join(fixture, "error-%s.json" % kind))
+    if failure is not None:
+        code_text = (read_small(os.path.join(fixture, "error-%s.code" % kind)) or "7").strip()
+        code = int(code_text) if code_text.isdigit() else 7
+        status, doc = parse_output(failure)
+        return "error", (doc if status == "ok" else None), code
+    raw = read_small(os.path.join(fixture, FIXTURE_FILES[kind]))
+    if raw is None:
+        return "error", None, 7
+    status, doc = parse_output(raw)
+    return status, doc, 0
 
 
 def parse_output(raw):
@@ -270,12 +281,26 @@ def parse_output(raw):
     return "ok", doc
 
 
+def drain(stream, limit, sink):
+    """Read up to `limit` bytes into sink, then discard the rest so the child never blocks."""
+    kept = 0
+    while True:
+        chunk = stream.read(4096)
+        if not chunk:
+            return
+        if kept < limit:
+            sink.append(chunk[: limit - kept])
+            kept += len(chunk)
+
+
 def run_cli(cli, kind, args):
-    """Run one fixed CLI command. Returns (status, parsed dict or None)."""
+    """Run one fixed CLI command under the contract: success is JSON on stdout with exit 0;
+    failure is JSON on stderr with a non-zero exit. Returns (outcome, doc, exit_code) where
+    outcome is ok, missing, toolarge, badjson or error (doc is then the parsed stderr, if any)."""
     if fixture_dir():
         return run_fixture(kind)
     if not cli:
-        return "missing", None
+        return "missing", None, 0
     env = dict(os.environ)
     env["NO_COLOR"] = "1"
     try:
@@ -283,12 +308,15 @@ def run_cli(cli, kind, args):
             [cli] + args,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
             env=env,
             close_fds=True,
         )
     except OSError:
-        return "missing", None
+        return "missing", None, 0
+    err_chunks = []
+    reader = threading.Thread(target=drain, args=(proc.stderr, 65536, err_chunks), daemon=True)
+    reader.start()
     timer = threading.Timer(CLI_TIMEOUT, proc.kill)
     timer.start()
     try:
@@ -299,29 +327,45 @@ def run_cli(cli, kind, args):
     finally:
         timer.cancel()
         proc.stdout.close()
+    reader.join(2)
+    code = proc.returncode
     if len(raw) > MAX_OUTPUT:
-        return "toolarge", None
+        return "toolarge", None, 0  # killed by us for sending too much; not a timeout
+    if code != 0:
+        # Killed (timeout) or any non-zero exit: classify by code; stderr JSON adds detail.
+        try:
+            status, doc = parse_output(b"".join(err_chunks).decode("utf-8"))
+        except UnicodeDecodeError:
+            status, doc = "badjson", None
+        return "error", (doc if status == "ok" else None), code
     try:
-        text = raw.decode("utf-8")
+        status, doc = parse_output(raw.decode("utf-8"))
     except UnicodeDecodeError:
-        return "badjson", None
-    status, doc = parse_output(text)
-    if status != "ok":
-        # A non-zero exit with no JSON is a failure to reach JobHunt, not bad data.
-        return ("failed" if proc.returncode else status), None
-    if proc.returncode and is_auth_error(doc):
-        return "ok", doc
-    if proc.returncode:
-        return "failed", doc
-    return "ok", doc
+        return "badjson", None, 0
+    return status, doc, 0
 
 
-def is_auth_error(doc):
-    if not isinstance(doc, dict):
-        return False
-    error = doc.get("error")
-    codes = [doc.get("code"), error.get("code") if isinstance(error, dict) else error]
-    return any(isinstance(code, str) and code in AUTH_CODES for code in codes)
+def classify_failure(code):
+    """The contract's exit codes, as the plugin's states."""
+    if code == 3:
+        return "signed_out"
+    if code == 7 or code < 0:
+        return "offline"  # unreachable, answered badly, or killed by the timeout
+    if code == 6:
+        return "rate_limited"
+    if code == 4:
+        return "permission"
+    return "error"
+
+
+def error_detail(doc):
+    error = doc.get("error") if isinstance(doc, dict) else None
+    return error if isinstance(error, dict) else {}
+
+
+def retry_after(doc):
+    value = error_detail(doc).get("retry_after_seconds")
+    return to_count(value, 86400) if isinstance(value, (int, float)) and not isinstance(value, bool) else 0
 
 
 # --------------------------------------------------------------------------
@@ -398,7 +442,7 @@ def normalise_overview(doc):
             "on": on.isoformat(),
             "days": day_diff(on, today),
             "time": clock,
-            "job_id": job_uuid(item.get("job_id")),  # absent in today's contract: no prep button then
+            "job_id": "",  # the contract gives rounds no id, so interviews carry no agent prompt
         })
 
     rows.sort(key=lambda row: (row["on"], row["time"] or "99:99", 0 if row["kind"] == "interview" else 1, row["title"]))
@@ -433,29 +477,26 @@ def normalise_overview(doc):
 
 
 def normalise_activity(doc, today_hint):
-    """`jobhunt activity --json` -> streak and a week-column grid for the last 365 days."""
+    """`jobhunt activity --json` -> totals and a week-column grid. Counts of recorded actions only:
+    the contract defines counts only, and the plugin derives nothing from them."""
     today = to_day(doc.get("today")) or to_day(today_hint)
     if today is None:
         raise ShapeError("no today")
     counts = {}
-    for item in (doc.get("days") or [])[: DAYS + 40]:
+    for item in (doc.get("days") or [])[:1100]:
         if not isinstance(item, dict):
             continue
         day = to_day(item.get("date"))
         if day is not None:
             counts[day] = counts.get(day, 0) + to_count(item.get("count"), 10_000)
-
-    start = today - dt.timedelta(days=DAYS - 1)
-    series = [(start + dt.timedelta(days=i), counts.get(start + dt.timedelta(days=i), 0)) for i in range(DAYS)]
-
-    streak = doc.get("current_streak_days")
-    if isinstance(streak, bool) or not isinstance(streak, (int, float)):
-        # The CLI did not say; count back from today, or from yesterday while today is still empty.
-        streak, cursor = 0, today if counts.get(today, 0) > 0 else today - dt.timedelta(days=1)
-        while counts.get(cursor, 0) > 0 and streak < 100_000:
-            streak += 1
-            cursor -= dt.timedelta(days=1)
-    streak = to_count(streak, 100_000)
+    if not counts:
+        raise ShapeError("no days")
+    # The window ends today and is at most a year long; a shorter answer gives a shorter grid.
+    start = max(today - dt.timedelta(days=DAYS - 1), min(counts))
+    length = (today - start).days + 1
+    series = [(start + dt.timedelta(days=i), counts.get(start + dt.timedelta(days=i), 0)) for i in range(length)]
+    recorded = sum(count for _, count in series)
+    active = sum(1 for _, count in series if count > 0)
 
     # Weeks start on Sunday, as the GitHub graph does. Cells outside the range are padding.
     pad = (series[0][0].weekday() + 1) % 7
@@ -471,12 +512,7 @@ def normalise_activity(doc, today_hint):
             else:
                 week.append({"date": cell[0].isoformat(), "count": cell[1], "level": min(cell[1], 4)})
         weeks.append(week)
-    return {
-        "current_days": streak,
-        "total_actions": sum(count for _, count in series),
-        "active_days": sum(1 for _, count in series if count > 0),
-        "weeks": weeks,
-    }
+    return {"window_days": length, "recorded_actions": recorded, "active_days": active, "weeks": weeks}
 
 
 # --------------------------------------------------------------------------
@@ -499,20 +535,19 @@ def empty_document(state, message, now):
         "due": [],
         "pipeline": [],
         "jobs_total": 0,
-        "streak": {"available": False, "current_days": 0, "total_actions": 0, "active_days": 0, "weeks": []},
+        "momentum": {"available": False, "window_days": 0, "recorded_actions": 0, "active_days": 0, "weeks": []},
+        "retry_after_seconds": 0,
     }
 
 
 def prompts_for(row):
     """Requests for the person's agent: fixed wording plus a validated UUID. Nothing else from
     the network (no title, no company, no task text) is ever put in a prompt, because
-    omarchy-agent runs agents in auto-approve modes."""
+    omarchy-agent runs agents in auto-approve modes. Only tasks tied to a job carry an id."""
     ident = job_uuid(row.get("job_id"))
-    if not ident:
-        return {"tailor": "", "prep": ""}
-    if row.get("kind") == "task":
-        return {"tailor": "In JobHunt, tailor my resume for the job with id %s. Show me the changes before saving." % ident, "prep": ""}
-    return {"tailor": "", "prep": "In JobHunt, help me prepare for my next interview for the job with id %s. Show me your notes before saving anything." % ident}
+    if ident and row.get("kind") == "task":
+        return {"tailor": "In JobHunt, tailor my resume for the job with id %s. Show me the changes before saving." % ident}
+    return {"tailor": ""}
 
 
 def render(state, message, data, activity, fetched, stale, hide, now):
@@ -540,51 +575,70 @@ def render(state, message, data, activity, fetched, stale, hide, now):
         "jobs_total": data["jobs_total"],
     })
     if activity:
-        doc["streak"] = dict(activity, available=True)
+        doc["momentum"] = dict(activity, available=True)
     return doc
+
+
+STATE_MESSAGES = {
+    "offline": "Could not reach JobHunt.",
+    "rate_limited": "JobHunt asked for a short pause.",
+    "permission": "This connection lacks a permission JobHunt needs.",
+    "error": "JobHunt returned something unexpected.",
+    "signed_out": "You are signed out of JobHunt.",
+}
 
 
 def snapshot(hide, cli_arg):
     now = now_utc()
     cli = "" if fixture_dir() else find_cli(cli_arg)
+    missing = empty_document("cli_missing", "The JobHunt command is not installed.", now)
     if not fixture_dir() and not cli:
-        return empty_document("cli_missing", "The JobHunt command is not installed.", now)
+        return missing
 
     cached = read_cache(now)
 
-    def fallback(state, message):
+    def fallback(state, retry=0):
+        # `permission` is shown as an error with its own sentence.
+        shown = "error" if state == "permission" else state
+        message = STATE_MESSAGES[state]
         if cached:
-            return render(state, message, cached["data"], cached.get("activity"), to_instant(cached["fetched_at"]), True, hide, now)
-        return empty_document(state, message, now)
+            doc = render(shown, message, cached["data"], cached.get("activity"), to_instant(cached["fetched_at"]), True, hide, now)
+        else:
+            doc = empty_document(shown, message, now)
+        doc["retry_after_seconds"] = retry
+        return doc
 
-    status, doc = run_cli(cli, "status", ["status", "--json"])
-    if status == "missing":
-        return empty_document("cli_missing", "The JobHunt command is not installed.", now)
-    if status == "ok" and doc.get("signed_in") is False:
+    def signed_out():
         drop_cache()
-        return empty_document("signed_out", "You are signed out of JobHunt.", now)
-    if status != "ok" or doc.get("signed_in") is not True:
-        return fallback("offline" if status == "failed" else "error",
-                        "Could not reach JobHunt." if status == "failed" else "JobHunt returned something unexpected.")
+        return empty_document("signed_out", STATE_MESSAGES["signed_out"], now)
 
-    status, overview = run_cli(cli, "overview", ["overview", "--json"])
-    if status == "ok" and is_auth_error(overview):
-        drop_cache()
-        return empty_document("signed_out", "You are signed out of JobHunt.", now)
-    if status == "missing":
-        return empty_document("cli_missing", "The JobHunt command is not installed.", now)
-    if status != "ok":
-        if status == "failed":
-            return fallback("offline", "Could not reach JobHunt.")
-        return fallback("error", "JobHunt returned something unexpected.")
+    outcome, doc, code = run_cli(cli, "status", ["status", "--json"])
+    if outcome == "missing":
+        return missing
+    if outcome == "error":
+        state = classify_failure(code)
+        return signed_out() if state == "signed_out" else fallback(state, retry_after(doc))
+    if outcome != "ok" or not isinstance(doc.get("signed_in"), bool):
+        return fallback("error")
+    if doc["signed_in"] is False:
+        return signed_out()  # a normal answer from `status`, exit 0
+
+    outcome, overview, code = run_cli(cli, "overview", ["overview", "--json"])
+    if outcome == "missing":
+        return missing
+    if outcome == "error":
+        state = classify_failure(code)
+        return signed_out() if state == "signed_out" else fallback(state, retry_after(overview))
+    if outcome != "ok":
+        return fallback("error")
     try:
         data = normalise_overview(overview)
     except ShapeError:
-        return fallback("error", "JobHunt returned something unexpected.")
+        return fallback("error")
 
     activity = None
-    status, act = run_cli(cli, "activity", ["activity", "--json", "--days", str(DAYS)])
-    if status == "ok":
+    outcome, act, code = run_cli(cli, "activity", ["activity", "--json", "--days", str(DAYS)])
+    if outcome == "ok":
         try:
             activity = normalise_activity(act, data["today"])
         except ShapeError:
@@ -622,34 +676,38 @@ def read_clipboard():
 
 
 def save_job(url, cli_arg):
+    def fail(reason, message=""):
+        return {"ok": False, "reason": reason, "message": message, "job": None, "already_saved": False, "details_pending": False}
+
     checked = valid_http_url(url)
     if checked is None:
-        return {"ok": False, "reason": "not_url", "job": None}
+        return fail("not_url")
     cli = "" if fixture_dir() else find_cli(cli_arg)
-    status, doc = run_cli(cli, "save", ["jobs", "save", checked, "--json"])
-    if status == "missing":
-        return {"ok": False, "reason": "cli_missing", "job": None}
-    if status == "ok" and is_auth_error(doc):
-        return {"ok": False, "reason": "signed_out", "job": None}
-    if status == "failed":
-        return {"ok": False, "reason": "failed", "job": None}
-    if status != "ok":
-        return {"ok": False, "reason": "unexpected", "job": None}
-    job = doc.get("job") if isinstance(doc.get("job"), dict) else doc
-    if doc.get("ok") is False:
-        return {"ok": False, "reason": "failed", "job": None}
-    stage = job.get("stage")
-    stage = stage.get("name") if isinstance(stage, dict) else stage
-    company = job.get("company")
-    company = company.get("name") if isinstance(company, dict) else company
+    outcome, doc, code = run_cli(cli, "save", ["jobs", "save", checked, "--json"])
+    if outcome == "missing":
+        return fail("cli_missing")
+    if outcome == "error":
+        state = classify_failure(code)
+        if state == "signed_out":
+            return fail("signed_out")
+        if state == "offline":
+            return fail("unreachable")
+        if state in ("rate_limited", "permission"):
+            return fail(state)
+        if code == 2:  # refused: the service explains in one sentence for a person; shown as plain text
+            return fail("refused", clean(error_detail(doc).get("message"), 200))
+        return fail("failed")
+    if outcome != "ok" or doc.get("ok") is False or not isinstance(doc.get("job"), dict):
+        return fail("unexpected")
+    job = doc["job"]
     return {
         "ok": True,
         "reason": "",
-        "job": {
-            "company": clean(company, 80),
-            "title": clean(job.get("title"), 120),
-            "stage": clean(stage, 40),
-        },
+        "message": "",
+        # Title and company are null until the link has been read; the stage is a name JobHunt gave.
+        "job": {"company": clean(job.get("company"), 80), "title": clean(job.get("title"), 120), "stage": clean(job.get("stage"), 40)},
+        "already_saved": doc.get("already_saved") is True,
+        "details_pending": doc.get("details_pending") is True,
     }
 
 
