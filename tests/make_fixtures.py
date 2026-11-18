@@ -20,7 +20,7 @@ WRAPPER = """#!/bin/sh
 # error-<command>.json prints that to stderr and exits with error-<command>.code instead.
 # `auth login` (no flags allowed) flips the scenario to signed in, `auth logout` to signed out,
 # by touching .signed-in / .signed-out here; delete those files to reset. A scenario with a
-# login-fails file refuses to sign in. Point the plugin's "JobHunt command path" setting at this
+# login-fails file refuses to sign in, with the error code written in that file. Point the plugin's "JobHunt command path" setting at this
 # file to see a scenario.
 d=$(dirname "$0")
 no_auth='{"error":{"code":"authentication_required","status":401}}'
@@ -28,7 +28,7 @@ if [ "$1" = auth ]; then
   case "$2" in
     login)
       [ "$#" -eq 2 ] || { echo '{"error":{"code":"invalid_input","status":0}}' >&2; exit 2; }
-      if [ -e "$d/login-fails" ]; then echo '{"error":{"code":"access_denied","status":0}}' >&2; exit 3; fi
+      if [ -e "$d/login-fails" ]; then c=$(cat "$d/login-fails"); printf '{"error":{"code":"%s","status":0}}\n' "${c:-access_denied}" >&2; exit 3; fi
       rm -f "$d/.signed-out"; touch "$d/.signed-in"; exit 0 ;;
     logout) rm -f "$d/.signed-in"; touch "$d/.signed-out"; exit 0 ;;
   esac
@@ -78,8 +78,10 @@ def put(name, files, now=NOW, wrapper=True, markers=()):
         w = os.path.join(d, "jobhunt")
         dump(w, WRAPPER)
         os.chmod(w, 0o755)
-    for m in markers:
-        open(os.path.join(d, m), "w").close()
+    for m in markers:  # a name, or (name, content)
+        name, content = (m, "") if isinstance(m, str) else m
+        with open(os.path.join(d, name), "w") as f:
+            f.write(content + ("\n" if content else ""))
 
 
 def contract(name):
@@ -133,7 +135,9 @@ put("busy-day", {"status.json": ok_status, "overview.json": overview(busy_over, 
 put("nothing-due", {"status.json": ok_status, "overview.json": overview([], [], []), "activity.json": activity(2, 0.0, 120),
                     "jobs-save.json": saved, "clipboard.txt": "not a link, just some words"})
 put("signed-out", {"status.json": contract("status-signed-out.json")})
-put("sign-in-fails", {"status.json": contract("status-signed-out.json")}, markers=["login-fails"])
+put("sign-in-fails", {"status.json": contract("status-signed-out.json")}, markers=[("login-fails", "access_denied")])
+# A code the panel has no sentence for: it shows the general one.
+put("sign-in-fails-other", {"status.json": contract("status-signed-out.json")}, markers=[("login-fails", "something_new")])
 put("revoked", {"status.json": ok_status, "error-overview.json": err_out, "error-overview.code": "3\n", "error-save.json": err_out, "error-save.code": "3\n"})
 put("cli-missing", {}, wrapper=False, markers=["cli-missing"])
 put("year-of-activity", {"status.json": ok_status, "overview.json": overview([], busy_soon[:1], []), "activity.json": activity(7, 1.0)})

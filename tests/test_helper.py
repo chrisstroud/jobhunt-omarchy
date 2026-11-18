@@ -292,7 +292,8 @@ class Auth(unittest.TestCase):
 
     def test_fixture_mode(self):
         self.assertEqual(run(["login"], "signed-out"), {"ok": True, "reason": ""})
-        self.assertEqual(run(["login"], "sign-in-fails"), {"ok": False, "reason": "failed"})
+        self.assertEqual(run(["login"], "sign-in-fails"), {"ok": False, "reason": "failed", "code": "access_denied"})
+        self.assertEqual(run(["login"], "sign-in-fails-other"), {"ok": False, "reason": "failed", "code": "something_new"})
         self.assertEqual(run(["logout"], "busy-day", env=self.env), {"ok": True, "reason": ""})
         self.assertEqual(run(["login"], "cli-missing")["reason"], "cli_missing")
 
@@ -307,7 +308,7 @@ class Auth(unittest.TestCase):
         self.assertEqual(run(["logout", "--cli", cli], env=self.env), {"ok": True, "reason": ""})
         self.assertEqual(run(["snapshot", "--cli", cli], env=self.env)["state"], "signed_out")
         fails = os.path.join(copy, "sign-in-fails", "jobhunt")
-        self.assertEqual(run(["login", "--cli", fails], env=self.env), {"ok": False, "reason": "failed"})
+        self.assertEqual(run(["login", "--cli", fails], env=self.env), {"ok": False, "reason": "failed", "code": "access_denied"})
         self.assertEqual(run(["snapshot", "--cli", fails], env=self.env)["state"], "signed_out")
 
     def test_login_passes_no_flags(self):
@@ -347,7 +348,22 @@ class Auth(unittest.TestCase):
         cli = fake_cli(self.tmp.name, 'echo "TOKEN-abc123"; echo "TOKEN-abc123" >&2; exit 3\n')
         got = subprocess.run([sys.executable, HELPER, "login", "--cli", cli], env=dict(CLEAN_ENV, **self.env), capture_output=True, text=True)
         self.assertNotIn("TOKEN", got.stdout + got.stderr)
-        self.assertEqual(json.loads(got.stdout), {"ok": False, "reason": "failed"})
+        self.assertEqual(json.loads(got.stdout), {"ok": False, "reason": "failed", "code": ""})
+
+    def test_only_a_code_shaped_error_code_is_kept(self):
+        # The contract's JSON error on stderr gives its code; a link, a token, an email or any other text never crosses.
+        for printed, code in [
+            ('{"error":{"code":"access_denied","status":0}}', "access_denied"),
+            ('{"error":{"code":"https://jobhunt.app/x?code=abc","status":0}}', ""),
+            ('{"error":{"code":"person@example.com"},"token":"TOKEN-abc"}', ""),
+            ('{"error":{"code":"Access Denied"}}', ""),
+            ('not json TOKEN-abc', ""),
+        ]:
+            cli = fake_cli(self.tmp.name, "printf '%%s' '%s' >&2; exit 3\n" % printed)
+            got = subprocess.run([sys.executable, HELPER, "login", "--cli", cli], env=dict(CLEAN_ENV, **self.env), capture_output=True, text=True)
+            self.assertEqual(json.loads(got.stdout), {"ok": False, "reason": "failed", "code": code}, printed)
+            self.assertNotIn("TOKEN", got.stdout)
+            self.assertNotIn("example.com", got.stdout)
 
     def test_logout_clears_the_cache_even_when_the_cli_fails(self):
         cache = self.env["JOBHUNT_OMARCHY_CACHE"]

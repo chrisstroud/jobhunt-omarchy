@@ -717,21 +717,43 @@ LOGIN_TIMEOUT = 300
 LOGOUT_TIMEOUT = 30
 
 
+# An error code from the CLI's contract: a short lower-case word. Nothing else from its output is kept.
+AUTH_CODE = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
+
+
+def auth_error_code(stderr):
+    """The `error.code` of the CLI's JSON error on stderr, if it has that shape; "" otherwise. Its
+    stdout is never read (it may be a token or a link), and no other part of stderr is kept."""
+    try:
+        doc = json.loads((stderr or b"")[:4096].decode("utf-8", "replace"))
+    except ValueError:
+        return ""
+    code = doc.get("error", {}).get("code") if isinstance(doc, dict) and isinstance(doc.get("error"), dict) else None
+    return code if isinstance(code, str) and AUTH_CODE.match(code) else ""
+
+
 def run_auth(cli, args, timeout):
-    """Run `jobhunt auth ...` with no flags and no input. Its output is never read (it may be a
-    token or a link), so it goes to /dev/null. Returns "ok", "failed", "timeout", "cancelled" or
-    "cli_missing". SIGTERM to this helper stops the child and answers "cancelled"."""
+    """Run `jobhunt auth ...` with no flags and no input. Its stdout is never read (it may be a token
+    or a link), so it goes to /dev/null; from stderr only the contract's error code is kept. Returns
+    (result, code): result is "ok", "failed", "timeout", "cancelled" or "cli_missing", and code is the
+    error code for "failed" ("" when there is none). SIGTERM to this helper stops the child and
+    answers "cancelled"."""
     if fixture_dir():
         if os.path.exists(os.path.join(fixture_dir(), "cli-missing")):
-            return "cli_missing"
-        return "failed" if os.path.exists(os.path.join(fixture_dir(), "login-fails")) and args[1] == "login" else "ok"
+            return "cli_missing", ""
+        marker = os.path.join(fixture_dir(), "login-fails")
+        if os.path.exists(marker) and args[1] == "login":
+            with open(marker) as f:
+                code = f.read().strip()
+            return "failed", code if AUTH_CODE.match(code) else ""
+        return "ok", ""
     if not cli:
-        return "cli_missing"
+        return "cli_missing", ""
     try:
         proc = subprocess.Popen([cli] + args, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                                stderr=subprocess.DEVNULL, close_fds=True)
+                                stderr=subprocess.PIPE, close_fds=True)
     except OSError:
-        return "cli_missing"
+        return "cli_missing", ""
     cancelled = []
 
     def stop(_signum, _frame):
@@ -741,14 +763,14 @@ def run_auth(cli, args, timeout):
     signal.signal(signal.SIGTERM, stop)
     signal.signal(signal.SIGINT, stop)
     try:
-        code = proc.wait(timeout=timeout)
+        _, err = proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
         proc.kill()
-        proc.wait()
-        return "timeout"
+        proc.communicate()
+        return "timeout", ""
     if cancelled:
-        return "cancelled"
-    return "ok" if code == 0 else "failed"
+        return "cancelled", ""
+    return ("ok", "") if proc.returncode == 0 else ("failed", auth_error_code(err))
 
 
 def sign_in(cli_arg):
@@ -757,13 +779,16 @@ def sign_in(cli_arg):
         limit = float(os.environ.get("JOBHUNT_OMARCHY_LOGIN_TIMEOUT", LOGIN_TIMEOUT))
     except ValueError:
         limit = LOGIN_TIMEOUT
-    result = run_auth(cli, ["auth", "login"], limit)
-    return {"ok": result == "ok", "reason": "" if result == "ok" else result}
+    result, code = run_auth(cli, ["auth", "login"], limit)
+    out = {"ok": result == "ok", "reason": "" if result == "ok" else result}
+    if result == "failed":
+        out["code"] = code  # the panel shows one plain line per known code
+    return out
 
 
 def sign_out(cli_arg):
     cli = "" if fixture_dir() else find_cli(cli_arg)
-    result = run_auth(cli, ["auth", "logout"], LOGOUT_TIMEOUT)
+    result, _ = run_auth(cli, ["auth", "logout"], LOGOUT_TIMEOUT)
     drop_cache()  # the plugin's copy of the person's data goes whatever the CLI said
     return {"ok": result == "ok", "reason": "" if result == "ok" else result}
 

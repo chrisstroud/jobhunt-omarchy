@@ -153,6 +153,24 @@ Item {
     saveProcess.running = true
   }
 
+  // Why sign-in failed, from the error code `jobhunt auth login` gave (the helper keeps only that code, never
+  // its output). One plain line per known code; a general one otherwise.
+  readonly property var loginReasons: ({
+    "access_denied": "Access was not approved in the browser.",
+    "authorization_expired": "The approval page expired before it was finished.",
+    "expired_token": "The approval page expired before it was finished.",
+    "timeout": "Sign-in was not finished in time.",
+    "unreachable": "JobHunt could not be reached. Check your connection.",
+    "network_error": "JobHunt could not be reached. Check your connection.",
+    "rate_limited": "Too many sign-in attempts. Wait a minute first.",
+    "browser_unavailable": "No browser could be opened. Run the sign-in command in a terminal instead.",
+    "account_required": "This sign-in has no JobHunt account yet. Create one at jobhunt.app first."
+  })
+  function loginReason(code) {
+    var key = String(code || "")
+    return loginReasons.hasOwnProperty(key) ? loginReasons[key] : "Sign-in did not finish."
+  }
+
   // `jobhunt auth login` with no arguments: the command opens the browser itself. Its output is never read.
   function startLogin() {
     if (loginProcess.running) return
@@ -226,7 +244,7 @@ Item {
       } else {
         root.loginState = "failed"
         root.loginMessage = doc && doc.reason === "timeout" ? "Sign-in was not finished in time."
-          : (doc && doc.reason === "cli_missing" ? "The JobHunt command is not installed." : "Sign-in did not finish.")
+          : (doc && doc.reason === "cli_missing" ? "The JobHunt command is not installed." : root.loginReason(doc ? doc.code : ""))
       }
       root.loginCancelled = false
     }

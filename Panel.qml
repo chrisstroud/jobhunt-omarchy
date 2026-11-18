@@ -30,6 +30,15 @@ Panel {
   readonly property bool darkBar: (0.299 * barForeground.r + 0.587 * barForeground.g + 0.114 * barForeground.b) > 0.5
   property real nowMs: Date.now()
 
+  // One spacing scale, from the shell's own tokens: between sections, between blocks in a section,
+  // and between a label and what it labels. The site's square corners for this plugin's own surfaces.
+  readonly property int gapSection: Style.spacing.panelGap
+  readonly property int gapBlock: Style.spacing.lg
+  readonly property int gapTight: Style.spacing.sm
+  readonly property int surfacePad: Style.spacing.xl
+  // "More ways to connect" on the sign-in panel: closed each time the panel opens.
+  property bool moreWays: false
+
   function setting(name, fallback) {
     var value = settings ? settings[name] : undefined
     return value === undefined || value === null ? fallback : value
@@ -145,6 +154,7 @@ Panel {
       jobhunt.cancelSave()
       jobhunt.cancelSignOut()
       pendingPrompt = ""
+      moreWays = false
     }
   }
   onSettingsChanged: applyHostSettings()
@@ -231,7 +241,7 @@ Panel {
         Column {
           id: panelColumn
           width: panelFlick.width
-          spacing: Style.space(12)
+          spacing: root.gapSection
 
           PanelHero {
             width: parent.width
@@ -264,16 +274,16 @@ Panel {
           BorderSurface {
             visible: !root.needsSetup && jobhunt.dataState !== "ok" && jobhunt.dataState !== "loading"
             width: parent.width
-            implicitHeight: statusText.implicitHeight + Style.space(20)
+            implicitHeight: statusText.implicitHeight + root.surfacePad * 2
             color: Qt.rgba(root.urgent.r, root.urgent.g, root.urgent.b, 0.10)
             borderSpec: Border.flat(Qt.rgba(root.urgent.r, root.urgent.g, root.urgent.b, 0.35), 1)
-            radius: Style.cornerRadius
+            radius: 0
             Text {
               id: statusText
               anchors.left: parent.left
               anchors.right: parent.right
               anchors.verticalCenter: parent.verticalCenter
-              anchors.margins: Style.space(10)
+              anchors.margins: root.surfacePad
               textFormat: Text.PlainText
               wrapMode: Text.WordWrap
               color: root.foreground
@@ -287,17 +297,17 @@ Panel {
           BorderSurface {
             visible: root.pendingPrompt !== ""
             width: parent.width
-            implicitHeight: promptColumn.implicitHeight + Style.space(20)
+            implicitHeight: promptColumn.implicitHeight + root.surfacePad * 2
             color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.06)
             borderSpec: Border.flat(Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.25), 1)
-            radius: Style.cornerRadius
+            radius: 0
             Column {
               id: promptColumn
               anchors.left: parent.left
               anchors.right: parent.right
               anchors.verticalCenter: parent.verticalCenter
-              anchors.margins: Style.space(10)
-              spacing: Style.space(6)
+              anchors.margins: root.surfacePad
+              spacing: root.gapBlock
               Text {
                 width: parent.width
                 textFormat: Text.PlainText
@@ -317,9 +327,10 @@ Panel {
                 text: root.pendingPrompt
               }
               Row {
-                spacing: Style.space(8)
+                spacing: root.gapBlock
                 Button {
                   text: "Send to my agent"
+                  selected: true
                   bordered: true
                   foreground: root.foreground
                   fontFamily: root.fontFamily
@@ -328,8 +339,7 @@ Panel {
                 }
                 Button {
                   text: "Cancel"
-                  bordered: true
-                  foreground: root.foreground
+                  foreground: root.dim
                   fontFamily: root.fontFamily
                   fontSize: Style.font.caption
                   onClicked: root.pendingPrompt = ""
@@ -339,24 +349,27 @@ Panel {
           }
 
           // ---- Setup (CLI missing or signed out) ----
+          // One sentence and the one action; other ways to connect wait behind a quiet disclosure.
           Column {
             visible: root.needsSetup
             width: parent.width
-            spacing: Style.space(8)
+            spacing: root.gapBlock
             PanelSeparator { foreground: root.foreground }
-            PanelSectionHeader { width: parent.width; text: "SET UP"; foreground: root.foreground; fontFamily: root.fontFamily }
+            SectionLabel { text: jobhunt.dataState === "cli_missing" ? "SET UP" : "SIGN IN" }
             Text {
               width: parent.width
               textFormat: Text.PlainText
               wrapMode: Text.WordWrap
-              color: root.dim
+              color: root.foreground
               font.family: root.fontFamily
-              font.pixelSize: Style.font.bodySmall
+              font.pixelSize: Style.font.body
+              lineHeight: 1.2
               text: jobhunt.dataState === "cli_missing"
-                ? "Install the JobHunt command, then sign in. JobHunt also needs an account at jobhunt.app."
-                : "Sign in with one click: JobHunt opens in your browser and asks you to approve. JobHunt needs an account at jobhunt.app."
+                ? "Install the JobHunt command, then sign in to see what needs you today."
+                : "Sign in to see what needs you today. JobHunt opens in your browser and asks you to approve."
             }
-            CommandRow { visible: jobhunt.dataState === "cli_missing"; label: "1. Install the command"; command: root.cmdInstall }
+            CommandRow { visible: jobhunt.dataState === "cli_missing"; label: "Install the command"; command: root.cmdInstall }
+            CommandRow { visible: jobhunt.dataState === "cli_missing"; label: "Then sign in"; command: root.cmdLogin }
             Button {
               visible: jobhunt.dataState === "signed_out" && jobhunt.loginState !== "waiting"
               text: "Sign in to JobHunt"
@@ -369,19 +382,18 @@ Panel {
             }
             Row {
               visible: jobhunt.dataState === "signed_out" && jobhunt.loginState === "waiting"
-              spacing: Style.space(8)
+              spacing: root.gapBlock
               Text {
                 anchors.verticalCenter: parent.verticalCenter
                 textFormat: Text.PlainText
                 color: root.foreground
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.bodySmall
-                text: "Waiting for you to approve in your browser"
+                text: "Waiting for you to approve in your browser\u2026"
               }
               Button {
                 text: "Cancel"
-                bordered: true
-                foreground: root.foreground
+                foreground: root.dim
                 fontFamily: root.fontFamily
                 fontSize: Style.font.caption
                 onClicked: jobhunt.cancelLogin()
@@ -397,27 +409,39 @@ Panel {
               font.pixelSize: Style.font.bodySmall
               text: jobhunt.loginMessage + " You can try again."
             }
-            CommandRow {
-              label: jobhunt.dataState === "cli_missing" ? "2. Sign in" : "Or run this in a terminal"
-              command: root.cmdLogin
+            Row {
+              spacing: root.gapBlock
+              Button {
+                text: root.moreWays ? "Fewer ways to connect" : "More ways to connect"
+                foreground: root.dim
+                fontFamily: root.fontFamily
+                fontSize: Style.font.caption
+                horizontalPadding: 0
+                onClicked: root.moreWays = !root.moreWays
+              }
+              Button {
+                text: "Check again"
+                foreground: root.dim
+                fontFamily: root.fontFamily
+                fontSize: Style.font.caption
+                onClicked: jobhunt.refresh()
+              }
             }
-            Text {
+            Column {
+              visible: root.moreWays
               width: parent.width
-              textFormat: Text.PlainText
-              wrapMode: Text.WordWrap
-              color: root.dim
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.bodySmall
-              text: "Optional: to let Claude Code use JobHunt too, run this once. This plugin never changes your agent settings."
-            }
-            CommandRow { label: "Connect Claude Code"; command: root.cmdMcp }
-            Button {
-              text: "Check again"
-              bordered: true
-              foreground: root.foreground
-              fontFamily: root.fontFamily
-              fontSize: Style.font.caption
-              onClicked: jobhunt.refresh()
+              spacing: root.gapBlock
+              CommandRow { visible: jobhunt.dataState === "signed_out"; label: "Or sign in from a terminal"; command: root.cmdLogin }
+              Text {
+                width: parent.width
+                textFormat: Text.PlainText
+                wrapMode: Text.WordWrap
+                color: root.dim
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+                text: "To let Claude Code use JobHunt too, run this once. This plugin never changes your agent settings."
+              }
+              CommandRow { label: "Connect Claude Code"; command: root.cmdMcp }
             }
           }
 
@@ -425,9 +449,9 @@ Panel {
           Column {
             visible: !root.needsSetup && jobhunt.hasData
             width: parent.width
-            spacing: Style.space(6)
+            spacing: root.gapTight
             PanelSeparator { foreground: root.foreground }
-            PanelSectionHeader { width: parent.width; text: "TODAY"; foreground: root.foreground; fontFamily: root.fontFamily }
+            SectionLabel { text: "TODAY" }
             Text {
               visible: root.todayRows.length === 0
               width: parent.width
@@ -441,12 +465,11 @@ Panel {
               model: root.todayRows
               delegate: DueRow { required property var modelData; row: modelData }
             }
-            PanelSectionHeader {
+            SectionLabel {
               visible: root.laterRows.length > 0
-              width: parent.width
+              quiet: true
+              topPadding: root.gapBlock
               text: "LATER THIS WEEK"
-              foreground: root.dim
-              fontFamily: root.fontFamily
             }
             Repeater {
               model: root.laterRows
@@ -458,9 +481,9 @@ Panel {
           Column {
             visible: !root.needsSetup && jobhunt.hasData
             width: parent.width
-            spacing: Style.space(8)
+            spacing: root.gapBlock
             PanelSeparator { foreground: root.foreground }
-            PanelSectionHeader { width: parent.width; text: "MOMENTUM"; foreground: root.foreground; fontFamily: root.fontFamily }
+            SectionLabel { text: "MOMENTUM" }
             Text {
               width: parent.width
               textFormat: Text.PlainText
@@ -479,9 +502,9 @@ Panel {
           Column {
             visible: !root.needsSetup && jobhunt.hasData && jobhunt.pipeline.length > 0
             width: parent.width
-            spacing: Style.space(4)
+            spacing: root.gapTight
             PanelSeparator { foreground: root.foreground }
-            PanelSectionHeader { width: parent.width; text: "PIPELINE"; foreground: root.foreground; fontFamily: root.fontFamily }
+            SectionLabel { text: "PIPELINE" }
             Repeater {
               model: jobhunt.pipeline
               delegate: Item {
@@ -519,13 +542,13 @@ Panel {
           Column {
             visible: !root.needsSetup
             width: parent.width
-            spacing: Style.space(8)
+            spacing: root.gapBlock
             PanelSeparator { foreground: root.foreground }
-            PanelSectionHeader { width: parent.width; text: "ACTIONS"; foreground: root.foreground; fontFamily: root.fontFamily }
+            SectionLabel { text: "ACTIONS" }
 
             Flow {
               width: parent.width
-              spacing: Style.space(8)
+              spacing: root.gapBlock
               Button {
                 visible: jobhunt.saveState === "idle" || jobhunt.saveState === "done" || jobhunt.saveState === "failed"
                 text: "Save job from clipboard"
@@ -537,16 +560,14 @@ Panel {
               }
               Button {
                 text: "What should I do next?"
-                bordered: true
-                foreground: root.foreground
+                foreground: root.dim
                 fontFamily: root.fontFamily
                 fontSize: Style.font.caption
                 onClicked: root.askAgent(root.promptNext)
               }
               Button {
                 text: "Open JobHunt"
-                bordered: true
-                foreground: root.foreground
+                foreground: root.dim
                 fontFamily: root.fontFamily
                 fontSize: Style.font.caption
                 onClicked: root.openUrl("https://jobhunt.app/app")
@@ -615,8 +636,9 @@ Panel {
           // ---- Privacy ----
           Column {
             width: parent.width
-            spacing: Style.space(8)
+            spacing: root.gapBlock
             PanelSeparator { foreground: root.foreground }
+            SectionLabel { text: "PRIVACY" }
             Toggle {
               width: parent.width
               label: "Hide company names"
@@ -630,8 +652,7 @@ Panel {
             Button {
               visible: !root.needsSetup && jobhunt.dataState !== "loading" && jobhunt.signOutState === "idle"
               text: "Sign out of JobHunt"
-              bordered: true
-              foreground: root.foreground
+              foreground: root.dim
               fontFamily: root.fontFamily
               fontSize: Style.font.caption
               onClicked: jobhunt.requestSignOut()
@@ -639,7 +660,7 @@ Panel {
             Column {
               visible: jobhunt.signOutState !== "idle"
               width: parent.width
-              spacing: Style.space(6)
+              spacing: root.gapBlock
               Text {
                 width: parent.width
                 textFormat: Text.PlainText
@@ -687,13 +708,34 @@ Panel {
     }
   }
 
+  // A section's label as the website sets one (/brand): a small square, then tracked capitals. The square
+  // takes the theme's accent, so the plugin keeps following the Omarchy theme. `quiet`: a sub-label, no square.
+  component SectionLabel: Row {
+    property string text: ""
+    property bool quiet: false
+    spacing: Style.spacing.md
+    Rectangle {
+      visible: !parent.quiet
+      anchors.verticalCenter: parent.verticalCenter
+      width: Style.spacing.md
+      height: Style.spacing.md
+      color: Color.accent
+    }
+    PanelSectionHeader {
+      text: parent.text
+      foreground: parent.quiet ? root.dim : root.foreground
+      fontFamily: root.fontFamily
+      font.letterSpacing: Style.font.caption * 0.14
+    }
+  }
+
   // A command shown as text, with a button that copies it.
   component CommandRow: Column {
     id: cmd
     property string label: ""
     property string command: ""
     width: parent ? parent.width : 0
-    spacing: Style.space(3)
+    spacing: root.gapTight
     Text {
       width: parent.width
       textFormat: Text.PlainText
@@ -737,11 +779,11 @@ Panel {
     readonly property string subject: [String(row.job_title || ""), String(row.company || "")].filter(function(part) { return part !== "" }).join(" · ")
     readonly property string prompt: String((row.prompts || {}).tailor || "")
     width: parent ? parent.width : 0
-    implicitHeight: rowColumn.implicitHeight + Style.space(12)
+    implicitHeight: rowColumn.implicitHeight + root.gapBlock * 2
 
     Rectangle {
       anchors.fill: parent
-      radius: Style.cornerRadius
+      radius: 0
       color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, rowMouse.containsMouse ? 0.07 : 0)
     }
     MouseArea {
@@ -756,9 +798,9 @@ Panel {
       anchors.left: parent.left
       anchors.right: parent.right
       anchors.verticalCenter: parent.verticalCenter
-      anchors.leftMargin: Style.space(9)
-      anchors.rightMargin: Style.space(9)
-      spacing: Style.space(2)
+      anchors.leftMargin: root.gapBlock
+      anchors.rightMargin: root.gapBlock
+      spacing: root.gapTight
       Text {
         width: parent.width
         textFormat: Text.PlainText
