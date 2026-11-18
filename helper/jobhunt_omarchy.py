@@ -9,6 +9,7 @@ only the normalise_* functions below change.
     jobhunt_omarchy.py snapshot [--hide-company] [--cli PATH]
     jobhunt_omarchy.py clipboard
     jobhunt_omarchy.py save URL [--cli PATH]
+    jobhunt_omarchy.py login|logout [--cli PATH]
 
 Rules this file keeps:
   * No shell. Every command is an argv list.
@@ -25,6 +26,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import threading
@@ -711,10 +713,65 @@ def save_job(url, cli_arg):
     }
 
 
+LOGIN_TIMEOUT = 300
+LOGOUT_TIMEOUT = 30
+
+
+def run_auth(cli, args, timeout):
+    """Run `jobhunt auth ...` with no flags and no input. Its output is never read (it may be a
+    token or a link), so it goes to /dev/null. Returns "ok", "failed", "timeout", "cancelled" or
+    "cli_missing". SIGTERM to this helper stops the child and answers "cancelled"."""
+    if fixture_dir():
+        if os.path.exists(os.path.join(fixture_dir(), "cli-missing")):
+            return "cli_missing"
+        return "failed" if os.path.exists(os.path.join(fixture_dir(), "login-fails")) and args[1] == "login" else "ok"
+    if not cli:
+        return "cli_missing"
+    try:
+        proc = subprocess.Popen([cli] + args, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL, close_fds=True)
+    except OSError:
+        return "cli_missing"
+    cancelled = []
+
+    def stop(_signum, _frame):
+        cancelled.append(True)
+        proc.kill()
+
+    signal.signal(signal.SIGTERM, stop)
+    signal.signal(signal.SIGINT, stop)
+    try:
+        code = proc.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait()
+        return "timeout"
+    if cancelled:
+        return "cancelled"
+    return "ok" if code == 0 else "failed"
+
+
+def sign_in(cli_arg):
+    cli = "" if fixture_dir() else find_cli(cli_arg)
+    try:
+        limit = float(os.environ.get("JOBHUNT_OMARCHY_LOGIN_TIMEOUT", LOGIN_TIMEOUT))
+    except ValueError:
+        limit = LOGIN_TIMEOUT
+    result = run_auth(cli, ["auth", "login"], limit)
+    return {"ok": result == "ok", "reason": "" if result == "ok" else result}
+
+
+def sign_out(cli_arg):
+    cli = "" if fixture_dir() else find_cli(cli_arg)
+    result = run_auth(cli, ["auth", "logout"], LOGOUT_TIMEOUT)
+    drop_cache()  # the plugin's copy of the person's data goes whatever the CLI said
+    return {"ok": result == "ok", "reason": "" if result == "ok" else result}
+
+
 def main(argv):
     args = argv[1:]
     if not args:
-        sys.stderr.write("usage: jobhunt_omarchy.py snapshot|clipboard|save URL\n")
+        sys.stderr.write("usage: jobhunt_omarchy.py snapshot|clipboard|save URL|login|logout\n")
         return 2
     command, rest = args[0], args[1:]
     cli_arg, hide, positional = "", False, []
@@ -732,10 +789,14 @@ def main(argv):
         out = snapshot(hide, cli_arg)
     elif command == "clipboard":
         out = read_clipboard()
+    elif command == "login" and not positional:
+        out = sign_in(cli_arg)
+    elif command == "logout" and not positional:
+        out = sign_out(cli_arg)
     elif command == "save" and len(positional) == 1:
         out = save_job(positional[0], cli_arg)
     else:
-        sys.stderr.write("usage: jobhunt_omarchy.py snapshot|clipboard|save URL\n")
+        sys.stderr.write("usage: jobhunt_omarchy.py snapshot|clipboard|save URL|login|logout\n")
         return 2
     sys.stdout.write(json.dumps(out, ensure_ascii=False, separators=(",", ":")) + "\n")
     return 0

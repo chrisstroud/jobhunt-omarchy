@@ -19,7 +19,7 @@ Version 0.1.0 (first build, not yet listed anywhere).
 - **Pipeline:** counts for each stage JobHunt reports. Stage names are never built in.
 - **Actions:** "Save job from clipboard" (reads a web link from the clipboard, shows it, and saves only after you confirm), "What should I do next?" (a request to your agent), and "Open JobHunt".
 - **Hide company names:** for shared screens. Names are left out of the panel and the bar tooltip. (Requests to your agent never contain names.)
-- **Setup:** if the command is missing or you are signed out, the panel shows the commands to run, with copy buttons.
+- **Setup:** if the command is missing, the panel shows the install command to copy. If you are signed out, it offers one-click "Sign in to JobHunt" (with a Cancel while it waits for your approval in the browser), and the terminal command as a fallback.
 
 The plugin never edits your agent's configuration. Requests to your agent go through `omarchy-agent --prompt "..."`, which starts your default agent, and Omarchy starts agents in their unattended modes. So no text that came from the network is ever put in a prompt: each request is fixed wording plus, at most, a job id that the plugin has checked is a UUID (for example "In JobHunt, tailor my resume for the job with id <uuid>. Show me the changes before saving."). No job title, company name or task text is included. The exact request is shown and needs your confirmation before anything launches.
 
@@ -33,10 +33,10 @@ omarchy plugin add <repository-url> --enable
 
 ```
 npm i -g jobhunt
-jobhunt auth login --scopes read:profile,read:applications,write:applications,read:campaigns,read:companies,read:contacts,read:documents,read:interviews,read:tasks,read:analytics
+jobhunt auth login
 ```
 
-(`write:applications` is used only to save a link you confirm; the rest are reads.) Optional, to let Claude Code use JobHunt too (this plugin does not run it for you):
+You can also sign in from the panel: with the command installed, "Sign in to JobHunt" runs `jobhunt auth login` (no flags) and JobHunt opens in your browser for you to approve. The panel has "Sign out of JobHunt" too (it runs `jobhunt auth logout` after you confirm and clears the plugin's saved data). The plugin never sees or stores your sign-in; the command does. Optional, to let Claude Code use JobHunt too (this plugin does not run it for you):
 
 ```
 claude mcp add --transport http jobhunt https://jobhunt.app/mcp
@@ -67,7 +67,7 @@ Open the widget's settings in Omarchy, or use the toggle in the panel.
 ## Troubleshooting
 
 - **Icon is dim, panel says the command is not installed:** run `npm i -g jobhunt`. If it is installed somewhere the shell does not see, set "JobHunt command path".
-- **Signed out:** run the sign-in command shown in the panel, then press "Check again".
+- **Signed out:** press "Sign in to JobHunt" in the panel (or run `jobhunt auth login`), then press "Check again".
 - **Rate limited:** the panel says JobHunt asked for a short pause and keeps the last data; the plugin waits the time JobHunt gave before reading again. It never reads more than once a minute.
 - **Offline:** the panel shows the last data it read and how old it is.
 - **Something unexpected:** run `jobhunt overview --json` in a terminal. If that works, update the plugin; the helper may need to learn a changed output shape.

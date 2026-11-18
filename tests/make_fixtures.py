@@ -18,8 +18,22 @@ WRAPPER = """#!/bin/sh
 # Stand-in for the jobhunt command: answers from the JSON files beside it and makes no network
 # call. It follows the plugin contract: success is JSON on stdout (exit 0); a scenario with an
 # error-<command>.json prints that to stderr and exits with error-<command>.code instead.
-# Point the plugin's "JobHunt command path" setting at this file to see this scenario.
+# `auth login` (no flags allowed) flips the scenario to signed in, `auth logout` to signed out,
+# by touching .signed-in / .signed-out here; delete those files to reset. A scenario with a
+# login-fails file refuses to sign in. Point the plugin's "JobHunt command path" setting at this
+# file to see a scenario.
 d=$(dirname "$0")
+no_auth='{"error":{"code":"authentication_required","status":401}}'
+if [ "$1" = auth ]; then
+  case "$2" in
+    login)
+      [ "$#" -eq 2 ] || { echo '{"error":{"code":"invalid_input","status":0}}' >&2; exit 2; }
+      if [ -e "$d/login-fails" ]; then echo '{"error":{"code":"access_denied","status":0}}' >&2; exit 3; fi
+      rm -f "$d/.signed-out"; touch "$d/.signed-in"; exit 0 ;;
+    logout) rm -f "$d/.signed-in"; touch "$d/.signed-out"; exit 0 ;;
+  esac
+  exit 2
+fi
 case "$1" in
   status) k=status; f=status.json ;;
   overview) k=overview; f=overview.json ;;
@@ -27,12 +41,21 @@ case "$1" in
   jobs) k=save; f=jobs-save.json ;;
   *) echo '{"error":{"code":"invalid_input","status":0}}' >&2; exit 2 ;;
 esac
+in=1; grep -q '"signed_in": false' "$d/status.json" 2>/dev/null && in=0
+[ -e "$d/.signed-in" ] && in=1
+[ -e "$d/.signed-out" ] && in=0
+if [ "$in" = 0 ]; then
+  [ "$k" = status ] && { echo '{"signed_in":false}'; exit 0; }
+  echo "$no_auth" >&2; exit 3
+fi
+src="$d"; [ -e "$d/$f" ] || src="$d/../busy-day"
+[ "$k" = status ] && { echo '{"signed_in":true}'; exit 0; }
 if [ -e "$d/error-$k.json" ]; then
   cat "$d/error-$k.json" >&2
   code=7; [ -e "$d/error-$k.code" ] && code=$(cat "$d/error-$k.code")
   exit "$code"
 fi
-cat "$d/$f" || exit 7
+cat "$src/$f" || exit 7
 """
 
 
@@ -110,6 +133,7 @@ put("busy-day", {"status.json": ok_status, "overview.json": overview(busy_over, 
 put("nothing-due", {"status.json": ok_status, "overview.json": overview([], [], []), "activity.json": activity(2, 0.0, 120),
                     "jobs-save.json": saved, "clipboard.txt": "not a link, just some words"})
 put("signed-out", {"status.json": contract("status-signed-out.json")})
+put("sign-in-fails", {"status.json": contract("status-signed-out.json")}, markers=["login-fails"])
 put("revoked", {"status.json": ok_status, "error-overview.json": err_out, "error-overview.code": "3\n", "error-save.json": err_out, "error-save.code": "3\n"})
 put("cli-missing", {}, wrapper=False, markers=["cli-missing"])
 put("year-of-activity", {"status.json": ok_status, "overview.json": overview([], busy_soon[:1], []), "activity.json": activity(7, 1.0)})

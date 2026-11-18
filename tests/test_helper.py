@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Helper tests. Run: python3 tests/test_helper.py  (or tests/run.sh for everything)."""
-import json, os, stat, subprocess, sys, tempfile, unittest
+import json, os, shutil, signal, stat, subprocess, sys, tempfile, time, unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -261,6 +261,105 @@ class ShippedLaunchers(unittest.TestCase):
             self.assertEqual(refused["reason"], "refused")
             for name in ("contract", "busy-day"):
                 self.assertTrue(run(["save", "https://example.com/x", "--cli", os.path.join(FIX, name, "jobhunt")], env=env)["ok"])
+
+
+class Auth(unittest.TestCase):
+    """One-click sign-in and sign-out: the helper side. (The button itself is QML and unseen.)"""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.env = {"JOBHUNT_OMARCHY_CACHE": os.path.join(self.tmp.name, "c", "snapshot.json"), "PATH": "/usr/bin:/bin", "HOME": self.tmp.name}
+
+    @staticmethod
+    def read(path):
+        with open(path) as f:
+            return f.read().strip()
+
+    def alive(self, pid):
+        try:
+            os.kill(pid, 0)
+            with open("/proc/%d/stat" % pid) as f:
+                return f.read().split(") ")[-1][0] != "Z"
+        except (OSError, ValueError):
+            return False
+
+    def sleeper(self):
+        pidfile = os.path.join(self.tmp.name, "pid")
+        argvfile = os.path.join(self.tmp.name, "argv")
+        cli = fake_cli(self.tmp.name, 'echo "$@" > %s; echo $$ > %s; exec sleep 30\n' % (argvfile, pidfile))
+        return cli, pidfile, argvfile
+
+    def test_fixture_mode(self):
+        self.assertEqual(run(["login"], "signed-out"), {"ok": True, "reason": ""})
+        self.assertEqual(run(["login"], "sign-in-fails"), {"ok": False, "reason": "failed"})
+        self.assertEqual(run(["logout"], "busy-day", env=self.env), {"ok": True, "reason": ""})
+        self.assertEqual(run(["login"], "cli-missing")["reason"], "cli_missing")
+
+    def test_stand_in_flow_signed_out_to_data_and_back(self):
+        copy = os.path.join(self.tmp.name, "fx")
+        shutil.copytree(FIX, copy)
+        cli = os.path.join(copy, "signed-out", "jobhunt")
+        self.assertEqual(run(["snapshot", "--cli", cli], env=self.env)["state"], "signed_out")
+        self.assertEqual(run(["login", "--cli", cli], env=self.env), {"ok": True, "reason": ""})
+        d = run(["snapshot", "--cli", cli], env=self.env)
+        self.assertEqual((d["state"], d["has_data"]), ("ok", True))
+        self.assertEqual(run(["logout", "--cli", cli], env=self.env), {"ok": True, "reason": ""})
+        self.assertEqual(run(["snapshot", "--cli", cli], env=self.env)["state"], "signed_out")
+        fails = os.path.join(copy, "sign-in-fails", "jobhunt")
+        self.assertEqual(run(["login", "--cli", fails], env=self.env), {"ok": False, "reason": "failed"})
+        self.assertEqual(run(["snapshot", "--cli", fails], env=self.env)["state"], "signed_out")
+
+    def test_login_passes_no_flags(self):
+        cli, pidfile, argvfile = self.sleeper()
+        env = dict(self.env, JOBHUNT_OMARCHY_LOGIN_TIMEOUT="1")
+        run(["login", "--cli", cli], env=env)
+        with open(argvfile) as f:
+            self.assertEqual(f.read().strip(), "auth login")
+        wrapper = os.path.join(FIX, "signed-out", "jobhunt")
+        refused = subprocess.run([wrapper, "auth", "login", "--scopes", "x"], capture_output=True)
+        self.assertEqual(refused.returncode, 2)  # the stand-in, like the CLI, treats extra arguments as misuse
+
+    def test_timeout_kills_the_child(self):
+        cli, pidfile, _ = self.sleeper()
+        d = run(["login", "--cli", cli], env=dict(self.env, JOBHUNT_OMARCHY_LOGIN_TIMEOUT="1"))
+        self.assertEqual((d["ok"], d["reason"]), (False, "timeout"))
+        self.assertFalse(self.alive(int(self.read(pidfile))))
+
+    def test_cancel_stops_the_child(self):
+        cli, pidfile, _ = self.sleeper()
+        e = dict(CLEAN_ENV, **self.env)
+        proc = subprocess.Popen([sys.executable, HELPER, "login", "--cli", cli], env=e, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        for _ in range(100):
+            if os.path.exists(pidfile) and self.read(pidfile):
+                break
+            time.sleep(0.05)
+        child = int(self.read(pidfile))
+        self.assertTrue(self.alive(child))
+        proc.send_signal(signal.SIGTERM)
+        out, err = proc.communicate(timeout=10)
+        self.assertEqual(json.loads(out), {"ok": False, "reason": "cancelled"})
+        self.assertEqual(err, "")
+        time.sleep(0.2)
+        self.assertFalse(self.alive(child))
+
+    def test_cli_output_is_never_read_or_repeated(self):
+        cli = fake_cli(self.tmp.name, 'echo "TOKEN-abc123"; echo "TOKEN-abc123" >&2; exit 3\n')
+        got = subprocess.run([sys.executable, HELPER, "login", "--cli", cli], env=dict(CLEAN_ENV, **self.env), capture_output=True, text=True)
+        self.assertNotIn("TOKEN", got.stdout + got.stderr)
+        self.assertEqual(json.loads(got.stdout), {"ok": False, "reason": "failed"})
+
+    def test_logout_clears_the_cache_even_when_the_cli_fails(self):
+        cache = self.env["JOBHUNT_OMARCHY_CACHE"]
+        run(["snapshot", "--cli", os.path.join(FIX, "busy-day", "jobhunt")], env=self.env)
+        self.assertTrue(os.path.exists(cache))
+        bad = fake_cli(self.tmp.name, "exit 7\n")
+        self.assertEqual(run(["logout", "--cli", bad], env=self.env), {"ok": False, "reason": "failed"})
+        self.assertFalse(os.path.exists(cache))
+
+    def test_missing_cli(self):
+        self.assertEqual(run(["login"], env=self.env)["reason"], "cli_missing")
+        self.assertEqual(run(["logout"], env=self.env)["reason"], "cli_missing")
 
 
 class RealProcessPath(unittest.TestCase):

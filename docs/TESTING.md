@@ -22,8 +22,8 @@ omarchy plugin add ~/Developer/jobhunt-omarchy --enable
 
 | State | Bar | Panel |
 | --- | --- | --- |
-| CLI not installed | Dim JobHunt mark, no number. Tooltip: "JobHunt: command not installed". | "SET UP" with the install and sign-in commands, the optional Claude Code command, copy buttons, "Check again". |
-| Not signed in | Dim mark, no number. Tooltip: "JobHunt: signed out". | "SET UP" with `jobhunt auth login`. |
+| CLI not installed | Dim JobHunt mark, no number. Tooltip: "JobHunt: command not installed". | "SET UP" with the install command and the sign-in command as copyable text (no buttons), the optional Claude Code command, copy buttons, "Check again". |
+| Not signed in | Dim mark, no number. Tooltip: "JobHunt: signed out". | "SET UP" with a "Sign in to JobHunt" button (while waiting: "Waiting for you to approve in your browser" and Cancel) and `jobhunt auth login` as copyable text. |
 | Signed in, nothing due | Bright mark, no number. | "Nothing due today.", momentum, pipeline, actions. |
 | Items due | Mark plus one number, in the bar's normal text colour (not the alarm colour). | Today rows soonest first, then "Later this week". Clicking a row opens jobhunt.app in the browser. |
 | Offline after a good read | Dimmed mark and number. | A tinted note: could not reach JobHunt, with the age of the data shown; the data is still listed. |
@@ -38,7 +38,8 @@ Each scenario folder in `fixtures/` holds a stand-in `jobhunt` program that answ
 | Items due, momentum, pipeline | `/home/chrisstroud/Developer/jobhunt-omarchy/fixtures/busy-day/jobhunt` |
 | Nothing due (no number) | `.../fixtures/nothing-due/jobhunt` |
 | A full year of activity | `.../fixtures/year-of-activity/jobhunt` |
-| Signed out | `.../fixtures/signed-out/jobhunt` |
+| Signed out, then one-click sign-in | `.../fixtures/signed-out/jobhunt`: press "Sign in to JobHunt"; the stand-in signs in at once (no browser) and the panel shows busy-day data. "Sign out of JobHunt" in the panel flips it back. Reset with `rm fixtures/*/.signed-in fixtures/*/.signed-out` |
+| Sign-in that fails | `.../fixtures/sign-in-fails/jobhunt`: one plain sentence and the button again |
 | The CLI's own example files, verbatim | `.../fixtures/contract/jobhunt` |
 | Signed out by a revoked connection (exit 3) | `.../fixtures/revoked/jobhunt` |
 | Rate limited, older data kept | busy-day once, then `.../fixtures/rate-limited/jobhunt` (a pause note; no new read for 2 minutes) |

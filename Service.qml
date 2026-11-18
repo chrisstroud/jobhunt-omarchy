@@ -35,6 +35,15 @@ Item {
   property string saveUrl: ""
   property string saveMessage: ""
 
+  // One-click sign-in: idle | waiting | failed. Sign-out: idle | confirm | working.
+  property string loginState: "idle"
+  property string loginMessage: ""
+  property bool loginCancelled: false
+  property string signOutState: "idle"
+  property string signOutMessage: ""
+  property string _loginOut: ""
+  property string _logoutOut: ""
+
   readonly property bool hideCompany: boolSetting("hideCompanyNames", false)
   // Off: nothing runs in the background; data loads when the panel opens or refresh is pressed.
   readonly property bool backgroundRefresh: boolSetting("backgroundRefresh", true)
@@ -144,6 +153,32 @@ Item {
     saveProcess.running = true
   }
 
+  // `jobhunt auth login` with no arguments: the command opens the browser itself. Its output is never read.
+  function startLogin() {
+    if (loginProcess.running) return
+    loginState = "waiting"
+    loginMessage = ""
+    loginCancelled = false
+    _loginOut = ""
+    loginProcess.command = ["python3", helperPath(), "login"].concat(cliArgs())
+    loginProcess.running = true
+  }
+  function cancelLogin() {
+    if (!loginProcess.running) return
+    loginCancelled = true
+    loginProcess.signal(15)  // the helper stops the command and answers "cancelled"
+  }
+
+  function requestSignOut() { if (signOutState === "idle") { signOutState = "confirm"; signOutMessage = "" } }
+  function cancelSignOut() { if (signOutState === "confirm") signOutState = "idle" }
+  function confirmSignOut() {
+    if (signOutState !== "confirm" || logoutProcess.running) return
+    signOutState = "working"
+    _logoutOut = ""
+    logoutProcess.command = ["python3", helperPath(), "logout"].concat(cliArgs())
+    logoutProcess.running = true
+  }
+
   function failureText(reason, message) {
     if (reason === "signed_out") return "You are signed out of JobHunt. Nothing was saved."
     if (reason === "cli_missing") return "The JobHunt command is not installed. Nothing was saved."
@@ -172,6 +207,42 @@ Item {
       if (out.trim() !== "") root.apply(out)
       else { root.dataState = "error"; root.message = "The JobHunt helper did not answer." }
       if (root.refreshQueued) Qt.callLater(root.refresh)
+    }
+  }
+
+  Process {
+    id: loginProcess
+    running: false
+    command: []
+    stdout: StdioCollector { id: loginOutput; waitForEnd: true; onStreamFinished: root._loginOut = text }
+    onExited: function(exitCode) {
+      var doc = null
+      try { doc = JSON.parse(String(loginOutput.text || root._loginOut || "")) } catch (error) { doc = null }
+      if (root.loginCancelled || (doc && doc.reason === "cancelled")) {
+        root.loginState = "idle"
+      } else if (doc && doc.ok === true) {
+        root.loginState = "idle"
+        root.refresh(true)
+      } else {
+        root.loginState = "failed"
+        root.loginMessage = doc && doc.reason === "timeout" ? "Sign-in was not finished in time."
+          : (doc && doc.reason === "cli_missing" ? "The JobHunt command is not installed." : "Sign-in did not finish.")
+      }
+      root.loginCancelled = false
+    }
+  }
+
+  Process {
+    id: logoutProcess
+    running: false
+    command: []
+    stdout: StdioCollector { id: logoutOutput; waitForEnd: true; onStreamFinished: root._logoutOut = text }
+    onExited: function(exitCode) {
+      var doc = null
+      try { doc = JSON.parse(String(logoutOutput.text || root._logoutOut || "")) } catch (error) { doc = null }
+      root.signOutState = "idle"
+      root.signOutMessage = doc && doc.ok === true ? "" : "Could not sign out. The saved data was cleared; run jobhunt auth logout in a terminal."
+      root.refresh(true)
     }
   }
 

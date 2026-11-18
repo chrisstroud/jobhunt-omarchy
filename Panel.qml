@@ -18,7 +18,7 @@ Panel {
   readonly property bool vertical: bar ? bar.vertical : false
 
   readonly property string cmdInstall: "npm i -g jobhunt"
-  readonly property string cmdLogin: "jobhunt auth login --scopes read:profile,read:applications,write:applications,read:campaigns,read:companies,read:contacts,read:documents,read:interviews,read:tasks,read:analytics"
+  readonly property string cmdLogin: "jobhunt auth login"
   readonly property string cmdMcp: "claude mcp add --transport http jobhunt https://jobhunt.app/mcp"
   readonly property string promptNext: "In JobHunt, tell me what I should do next. Do not change anything."
 
@@ -143,6 +143,7 @@ Panel {
     } else {
       // A copied link must not wait around for the next open.
       jobhunt.cancelSave()
+      jobhunt.cancelSignOut()
       pendingPrompt = ""
     }
   }
@@ -351,10 +352,55 @@ Panel {
               color: root.dim
               font.family: root.fontFamily
               font.pixelSize: Style.font.bodySmall
-              text: (jobhunt.dataState === "cli_missing" ? "Run these two commands in a terminal. JobHunt also needs an account at jobhunt.app." : "Run this command in a terminal to sign in. JobHunt needs an account at jobhunt.app.")
+              text: jobhunt.dataState === "cli_missing"
+                ? "Install the JobHunt command, then sign in. JobHunt also needs an account at jobhunt.app."
+                : "Sign in with one click: JobHunt opens in your browser and asks you to approve. JobHunt needs an account at jobhunt.app."
             }
             CommandRow { visible: jobhunt.dataState === "cli_missing"; label: "1. Install the command"; command: root.cmdInstall }
-            CommandRow { label: jobhunt.dataState === "cli_missing" ? "2. Sign in" : "Sign in"; command: root.cmdLogin }
+            Button {
+              visible: jobhunt.dataState === "signed_out" && jobhunt.loginState !== "waiting"
+              text: "Sign in to JobHunt"
+              selected: true
+              bordered: true
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              fontSize: Style.font.body
+              onClicked: jobhunt.startLogin()
+            }
+            Row {
+              visible: jobhunt.dataState === "signed_out" && jobhunt.loginState === "waiting"
+              spacing: Style.space(8)
+              Text {
+                anchors.verticalCenter: parent.verticalCenter
+                textFormat: Text.PlainText
+                color: root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.bodySmall
+                text: "Waiting for you to approve in your browser"
+              }
+              Button {
+                text: "Cancel"
+                bordered: true
+                foreground: root.foreground
+                fontFamily: root.fontFamily
+                fontSize: Style.font.caption
+                onClicked: jobhunt.cancelLogin()
+              }
+            }
+            Text {
+              visible: jobhunt.dataState === "signed_out" && jobhunt.loginState === "failed"
+              width: parent.width
+              textFormat: Text.PlainText
+              wrapMode: Text.WordWrap
+              color: root.urgent
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.bodySmall
+              text: jobhunt.loginMessage + " You can try again."
+            }
+            CommandRow {
+              label: jobhunt.dataState === "cli_missing" ? "2. Sign in" : "Or run this in a terminal"
+              command: root.cmdLogin
+            }
             Text {
               width: parent.width
               textFormat: Text.PlainText
@@ -580,6 +626,60 @@ Panel {
               accent: Color.accent
               fontFamily: root.fontFamily
               onClicked: root.persistSettings({ hideCompanyNames: !jobhunt.hideCompany })
+            }
+            Button {
+              visible: !root.needsSetup && jobhunt.dataState !== "loading" && jobhunt.signOutState === "idle"
+              text: "Sign out of JobHunt"
+              bordered: true
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              fontSize: Style.font.caption
+              onClicked: jobhunt.requestSignOut()
+            }
+            Column {
+              visible: jobhunt.signOutState !== "idle"
+              width: parent.width
+              spacing: Style.space(6)
+              Text {
+                width: parent.width
+                textFormat: Text.PlainText
+                wrapMode: Text.WordWrap
+                color: root.dim
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.bodySmall
+                text: "Sign out of JobHunt on this computer? The data this plugin saved is cleared too."
+              }
+              Row {
+                spacing: Style.space(8)
+                Button {
+                  text: jobhunt.signOutState === "working" ? "Signing out\u2026" : "Sign out"
+                  enabled: jobhunt.signOutState === "confirm"
+                  bordered: true
+                  foreground: root.foreground
+                  fontFamily: root.fontFamily
+                  fontSize: Style.font.caption
+                  onClicked: jobhunt.confirmSignOut()
+                }
+                Button {
+                  text: "Cancel"
+                  enabled: jobhunt.signOutState === "confirm"
+                  bordered: true
+                  foreground: root.foreground
+                  fontFamily: root.fontFamily
+                  fontSize: Style.font.caption
+                  onClicked: jobhunt.cancelSignOut()
+                }
+              }
+            }
+            Text {
+              visible: jobhunt.signOutMessage !== ""
+              width: parent.width
+              textFormat: Text.PlainText
+              wrapMode: Text.WordWrap
+              color: root.urgent
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.bodySmall
+              text: jobhunt.signOutMessage
             }
           }
         }
