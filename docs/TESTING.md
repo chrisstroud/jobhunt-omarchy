@@ -31,7 +31,7 @@ omarchy plugin add ~/Developer/jobhunt-omarchy --enable
 
 ## 3. Try the states without the real CLI
 
-The helper reads fixtures when `JOBHUNT_OMARCHY_FIXTURE` is set, but the shell does not inherit variables set in a terminal, so for a look at the panel in each state use the real CLI where possible (`jobhunt auth logout` for the signed-out state, `sudo`-free renaming of the `jobhunt` binary for the missing state, network off for offline). The fixtures `busy-day`, `nothing-due`, `signed-out`, `cli-missing`, `stale-offline` and `year-of-activity` are covered by `tests/run.sh`; they can also be read directly:
+The helper reads fixtures when `JOBHUNT_OMARCHY_FIXTURE` is set, but the shell does not inherit variables set in a terminal, so for a look at the panel in each state use the real CLI where possible (sign out for the signed-out state, temporarily set "JobHunt command path" to a path that does not exist for the missing state, network off for offline). The fixtures `busy-day`, `nothing-due`, `signed-out`, `cli-missing`, `stale-offline` and `year-of-activity` are covered by `tests/run.sh`; they can also be read directly:
 
 ```
 JOBHUNT_OMARCHY_FIXTURE=fixtures/busy-day python3 helper/jobhunt_omarchy.py snapshot | jq .
