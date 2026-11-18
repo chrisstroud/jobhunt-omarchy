@@ -42,7 +42,22 @@ You can also sign in from the panel: with the command installed, "Sign in to Job
 claude mcp add --transport http jobhunt https://jobhunt.app/mcp
 ```
 
-The plugin id is `jobhunt.app`. It can change before the plugin is listed.
+The plugin id is `jobhunt.app`.
+
+## Remove
+
+```
+omarchy plugin remove jobhunt.app
+```
+
+This removes the plugin and its bar item. It does not sign you out or remove the command. To do that too:
+
+```
+jobhunt auth logout
+npm rm -g jobhunt
+```
+
+Nothing in your JobHunt account is deleted by any of these.
 
 ## Settings
 
@@ -89,7 +104,6 @@ The code is MIT licensed (see LICENSE). The emblem is JobHunt's mark and is incl
 
 - The app paths used for row links (`/app/applications/id/<uuid>`, `/app/tasks`, `/app/interviews`) are unconfirmed: they were read from the product source, not tried against jobhunt.app.
 - The overview does not report a job id on interview rounds, so interview rows have no agent button until it does.
-- The plugin id (`jobhunt.app`) and licence holder may change before listing.
 - Strings are English only.
 
 ## Development
