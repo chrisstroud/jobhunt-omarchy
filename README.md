@@ -26,10 +26,10 @@ The plugin never edits your agent's configuration. Requests to your agent go thr
 ## Install
 
 ```
-omarchy plugin add <repository-url> --enable
+omarchy plugin add https://github.com/chrisstroud/jobhunt-omarchy --enable
 ```
 
-(The repository URL is filled in when the plugin is published.) Then install the command and sign in:
+Then install the command and sign in:
 
 ```
 npm i -g jobhunt

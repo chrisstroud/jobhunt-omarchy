@@ -35,7 +35,7 @@ Each scenario folder in `fixtures/` holds a stand-in `jobhunt` program that answ
 
 | State | Set "JobHunt command path" to |
 | --- | --- |
-| Items due, momentum, pipeline | `/home/chrisstroud/Developer/jobhunt-omarchy/fixtures/busy-day/jobhunt` |
+| Items due, momentum, pipeline | `/path/to/jobhunt-omarchy/fixtures/busy-day/jobhunt` (the full path to your copy of this repository) |
 | Nothing due (no number) | `.../fixtures/nothing-due/jobhunt` |
 | A full year of activity | `.../fixtures/year-of-activity/jobhunt` |
 | Signed out, then one-click sign-in | `.../fixtures/signed-out/jobhunt`: press "Sign in to JobHunt"; the stand-in signs in at once (no browser) and the panel shows busy-day data. "Sign out of JobHunt" in the panel flips it back. Reset with `rm fixtures/*/.signed-in fixtures/*/.signed-out` |
