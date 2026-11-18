@@ -61,7 +61,7 @@ The same data can be read in a terminal: `JOBHUNT_OMARCHY_FIXTURE=fixtures/busy-
 8. Copy buttons put the exact command on the clipboard.
 9. "Open links" in settings: Browser tab versus Web app window.
 10. Turn off "Refresh in the background" in settings: the bar number should then change only after you open the panel or press refresh.
-11. No emoji, score, rank or pressure wording anywhere; the Momentum section reads "N recorded actions on M days, in the last N days." with no streak anywhere.
+11. No emoji, score, rank or pressure wording anywhere; the Momentum section only states counts: "N recorded actions on M days, in the last N days.".
 
 ## 5. Remove
 
