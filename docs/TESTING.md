@@ -29,13 +29,22 @@ omarchy plugin add ~/Developer/jobhunt-omarchy --enable
 | Offline after a good read | Dimmed mark and number. | A tinted note: could not reach JobHunt, with the age of the data shown; the data is still listed. |
 | Unexpected answer | "!" beside the mark when there is no older data. | A tinted note: JobHunt returned something unexpected. |
 
-## 3. Try the states without the real CLI
+## 3. See every state with the shipped fixtures and no real CLI
 
-The helper reads fixtures when `JOBHUNT_OMARCHY_FIXTURE` is set, but the shell does not inherit variables set in a terminal, so for a look at the panel in each state use the real CLI where possible (sign out for the signed-out state, temporarily rename the `jobhunt` binary for the missing state, network off for offline). The fixtures `busy-day`, `nothing-due`, `signed-out`, `cli-missing`, `stale-offline` and `year-of-activity` are covered by `tests/run.sh`; they can also be read directly:
+Each scenario folder in `fixtures/` holds a stand-in `jobhunt` program that answers from the JSON files beside it. It makes no network call and saves nothing. The plugin's setting "JobHunt command path" points at it, so no environment variables and no real CLI are needed. In Omarchy's widget settings for JobHunt, set the path to one of these (use your real home folder path), then press refresh in the panel:
 
-```
-JOBHUNT_OMARCHY_FIXTURE=fixtures/busy-day python3 helper/jobhunt_omarchy.py snapshot | jq .
-```
+| State | Set "JobHunt command path" to |
+| --- | --- |
+| Items due, streak, pipeline | `/home/chrisstroud/Developer/jobhunt-omarchy/fixtures/busy-day/jobhunt` |
+| Nothing due (no number) | `.../fixtures/nothing-due/jobhunt` |
+| A full year of activity | `.../fixtures/year-of-activity/jobhunt` |
+| Signed out | `.../fixtures/signed-out/jobhunt` |
+| Offline with older data | first use busy-day and let it load once, then switch to `.../fixtures/stale-offline/jobhunt` (it fails like a lost connection; the cache from the first read is shown with its age) |
+| CLI not installed | clear the setting while no real `jobhunt` is installed (the usual state at first install); if one is installed, temporarily rename it |
+
+When you are done, clear the setting and delete `~/.cache/jobhunt-omarchy` (the fixture reads are cached like real ones). The fixture data is invented and fixed to 17 November 2026, so "today" in the panel is that day, whatever the real date. In busy-day, only the first interview ("Panel interview") carries a job id, so only it has a "Prep me" button.
+
+The same data can be read in a terminal: `JOBHUNT_OMARCHY_FIXTURE=fixtures/busy-day python3 helper/jobhunt_omarchy.py snapshot | jq .` and `tests/run.sh` covers every scenario.
 
 ## 4. Check by eye
 
@@ -43,12 +52,13 @@ JOBHUNT_OMARCHY_FIXTURE=fixtures/busy-day python3 helper/jobhunt_omarchy.py snap
 2. With a number showing, the icon and number are centred together and the widget does not push neighbours oddly. Also with no number.
 3. The panel opens under the icon, fits (scrolls if tall), closes with Escape and outside click, and `r` refreshes.
 4. The activity graph: 53 columns fit the width, cell colours follow the theme accent, and hovering a cell shows a tooltip.
-5. "Hide company names": toggle it in the panel; names disappear from rows (and, after the next read, from agent requests); the setting survives a shell reload.
+5. "Hide company names": toggle it in the panel; names disappear from rows ; the setting survives a shell reload.
 6. "Save job from clipboard": copy a job link, press the button, check the link is shown and nothing is saved until "Save this job". With non-link text on the clipboard you should see the "does not hold a web link" message. (Saving needs the real CLI's `jobhunt jobs save`.)
-7. "What should I do next?" and the per-row buttons open your default agent in a terminal with the request. Check the wording reads well.
+7. "What should I do next?" and the per-row buttons first show the exact request at the top of the panel with "Send to my agent" and "Cancel"; only after Send does your default agent open in a terminal. Check that the request contains no job title or company name, only a job id.
 8. Copy buttons put the exact command on the clipboard.
 9. "Open links" in settings: Browser tab versus Web app window.
-10. No emoji, score, rank or pressure wording anywhere; the streak reads "Current streak: N days".
+10. Turn off "Refresh in the background" in settings: the bar number should then change only after you open the panel or press refresh.
+11. No emoji, score, rank or pressure wording anywhere; the streak reads "Current streak: N days".
 
 ## 5. Remove
 

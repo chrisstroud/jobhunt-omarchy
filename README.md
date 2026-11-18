@@ -10,18 +10,18 @@ Version 0.1.0 (first build, not yet listed anywhere).
 
 ## What it does
 
-**Bar:** the JobHunt mark and one quiet number: how many things need you today (tasks overdue or due today, interviews today or tomorrow). When nothing is due there is no number. The icon dims when it cannot show live data (not installed, signed out, offline). Right-click or middle-click refreshes.
+**Bar:** the JobHunt mark and one quiet number: how many things need you today (interviews and tasks due: tasks overdue or due today, interviews today or tomorrow). When nothing is due there is no number. The icon dims when it cannot show live data (not installed, signed out, offline). Right-click or middle-click refreshes.
 
 **Panel (click the icon):**
 
-- **Today:** the due items, soonest first. Click one to open it on jobhunt.app. Interviews and tasks tied to a job have a button that hands a plain request to your own terminal agent ("Prep me for this interview", "Tailor my resume for this job"). A short "Later this week" list follows.
+- **Today:** the due items, soonest first. Click one to open it on jobhunt.app. Tasks tied to a job (and interviews, once JobHunt reports the job id for them) have a button that hands a request to your own terminal agent ("Tailor my resume for this job", "Prep me for this interview"). The exact request is shown first and nothing is sent until you confirm. A short "Later this week" list follows.
 - **Streak:** your current streak in days and a year of activity, drawn in the Omarchy theme's accent colour.
 - **Pipeline:** counts for each stage JobHunt reports. Stage names are never built in.
 - **Actions:** "Save job from clipboard" (reads a web link from the clipboard, shows it, and saves only after you confirm), "What should I do next?" (a request to your agent), and "Open JobHunt".
-- **Hide company names:** for shared screens. Names are left out of the panel, the bar tooltip and the requests sent to your agent.
+- **Hide company names:** for shared screens. Names are left out of the panel and the bar tooltip. (Requests to your agent never contain names.)
 - **Setup:** if the command is missing or you are signed out, the panel shows the commands to run, with copy buttons.
 
-The plugin never edits your agent's configuration. Requests to your agent go through `omarchy-agent --prompt "..."`, which starts your default agent. Note that Omarchy starts agents in their unattended modes; the plugin therefore reduces job and company names to letters, digits and a few marks before putting them in a prompt.
+The plugin never edits your agent's configuration. Requests to your agent go through `omarchy-agent --prompt "..."`, which starts your default agent, and Omarchy starts agents in their unattended modes. So no text that came from the network is ever put in a prompt: each request is fixed wording plus, at most, a job id that the plugin has checked is a UUID (for example "In JobHunt, tailor my resume for the job with id <uuid>. Show me the changes before saving."). No job title, company name or task text is included. The exact request is shown and needs your confirmation before anything launches.
 
 ## Install
 
@@ -50,6 +50,7 @@ Open the widget's settings in Omarchy, or use the toggle in the panel.
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
+| Refresh in the background | on | When off, nothing runs in the background: data loads only when you open the panel or press refresh (the bar number may then be out of date). |
 | Refresh interval | 900 s | How often the JobHunt command runs in the background (300 to 3600). It also runs when the panel opens. |
 | Hide company names | off | For shared screens. |
 | Open links | Browser tab | Or "Web app window" (needs a Chromium-based default browser). |
@@ -57,7 +58,7 @@ Open the widget's settings in Omarchy, or use the toggle in the panel.
 
 ## Privacy
 
-- The plugin itself makes no network requests. The `jobhunt` command contacts jobhunt.app each time it runs (every refresh interval while the bar is up, and when you open the panel).
+- The plugin itself makes no network requests. The `jobhunt` command contacts jobhunt.app each time it runs (every refresh interval while the bar is up, unless you turn background refresh off, and when you open the panel).
 - Read: your overview (stage counts, tasks and interviews due in the next 7 days, with job and company names), and your activity counts for the last 365 days. Only fixed commands are run: `jobhunt status --json`, `jobhunt overview --json`, `jobhunt activity --json --days 365`, and, only after you confirm, `jobhunt jobs save <link> --json`.
 - The clipboard is read only when you press "Save job from clipboard". Its text is shown to you if it is a web link and is otherwise discarded; nothing is saved without a second click.
 - Stored: a short-lived cache at `~/.cache/jobhunt-omarchy/snapshot.json` (permissions 0600), used to show the last good data when you are offline. It holds the items listed above, is ignored after 24 hours, and is deleted when the plugin sees that you are signed out. Delete the file at any time. No passwords, tokens or keys are stored or handled; sign-in belongs to the `jobhunt` command.
@@ -82,6 +83,13 @@ Open the widget's settings in Omarchy, or use the toggle in the panel.
 | `assets/jobhunt-emblem-on-light.svg` | 25107b4814f3b4aa06d5c0ae94e670aa30687d49b8f212fc5f63c46c23d29fd7 |
 
 The code is MIT licensed (see LICENSE). The emblem is JobHunt's mark and is included as supplied.
+
+## Open questions
+
+- The app paths used for row links (`/app/applications/id/<uuid>`, `/app/tasks`, `/app/interviews`) are unconfirmed: they were read from the product source, not tried against jobhunt.app.
+- The overview does not report a job id on interview rounds, so interview rows have no "Prep me" button until it does.
+- The plugin id (`jobhunt.app`) and licence holder may change before listing.
+- Strings are English only.
 
 ## Development
 

@@ -8,6 +8,19 @@ TODAY = dt.date(2026, 11, 17)
 U = ["3f2a9c1e-5b7d-4e8a-9c21-0a1b2c3d4e5f", "7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d", "c0ffee00-1111-4222-8333-444455556666"]
 
 
+WRAPPER = """#!/bin/sh
+# Stand-in for the jobhunt command: answers from the JSON files beside it and makes no network
+# call. Point the plugin's "JobHunt command path" setting at this file to see this scenario.
+d=$(dirname "$0")
+case "$1" in
+  status) cat "$d/status.json" ;;
+  overview|activity) [ -e "$d/offline" ] && exit 1; cat "$d/$1.json" ;;
+  jobs) [ -e "$d/offline" ] && exit 1; cat "$d/jobs-save.json" ;;
+  *) exit 2 ;;
+esac
+"""
+
+
 def put(name, files, markers=()):
     d = os.path.join(ROOT, name)
     os.makedirs(d, exist_ok=True)
@@ -23,6 +36,11 @@ def put(name, files, markers=()):
             else:
                 json.dump(v, f, indent=1)
                 f.write("\n")
+    if name != "cli-missing":
+        wrapper = os.path.join(d, "jobhunt")
+        with open(wrapper, "w") as f:
+            f.write(WRAPPER)
+        os.chmod(wrapper, 0o755)
     for m in markers:
         open(os.path.join(d, m), "w").close()
 
@@ -45,10 +63,10 @@ def overview(tasks_over, tasks_soon, rounds):
 busy_over = [{"id": "t1", "title": "Send thank-you note", "due": "2026-11-15", "due_days": 2, "job_id": U[0], "job": {"company": "Northwind Mills", "title": "Staff Designer"}}]
 busy_soon = [
     {"id": "t2", "title": "Follow up on application", "due": "2026-11-17", "due_in_days": 0, "job_id": U[1], "job": {"company": "Fabrikam Harbor", "title": "Product Lead"}},
-    {"id": "t3", "title": "Apply by Friday", "due": "2026-11-20", "due_in_days": 3, "job_id": U[2], "job": {"company": "Contoso Kites", "title": "Design Manager"}},
+    {"id": "t3", "title": "Submit application", "due": "2026-11-20", "due_in_days": 3, "job_id": U[2], "job": {"company": "Contoso Kites", "title": "Design Manager"}},
     {"id": "t4", "title": "Update portfolio", "due": "2026-11-18", "due_in_days": 1, "job_id": None}]
 busy_rounds = [
-    {"round": "Panel interview", "scheduled_at": "2026-11-17T21:30:00Z", "on": "2026-11-17", "company": "Northwind Mills", "title": "Staff Designer"},
+    {"round": "Panel interview", "job_id": U[0], "scheduled_at": "2026-11-17T21:30:00Z", "on": "2026-11-17", "company": "Northwind Mills", "title": "Staff Designer"},
     {"round": "Phone screen", "scheduled_at": "2026-11-19T17:00:00Z", "on": "2026-11-19", "company": "Fabrikam Harbor", "title": "Product Lead"},
     {"round": "Hiring manager chat", "scheduled_at": "2026-11-18T18:00:00Z", "on": "2026-11-18", "company": "Contoso Kites", "title": "Design Manager", "status": "cancelled"}]
 

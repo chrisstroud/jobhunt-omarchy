@@ -76,17 +76,16 @@ def clean(value, limit):
     return out
 
 
-def prompt_name(value):
-    """A name made safe to put inside a prompt for an agent: letters, digits and a few marks only."""
-    if not isinstance(value, str):
-        return ""
-    out = "".join(ch if (ch.isalnum() or ch in " .,&'()/+#-") else " " for ch in value)
-    out = " ".join(out.split())
-    return out[:60].rstrip()
+def job_uuid(value):
+    """A job id as a lower-case UUID, or "" when it is anything else. Ids are the only
+    network-derived value that may appear in an agent prompt."""
+    if isinstance(value, str) and UUID_RE.fullmatch(value):
+        return value.lower()
+    return ""
 
 
 def to_day(value):
-    if not isinstance(value, str) or not DAY_RE.match(value):
+    if not isinstance(value, str) or not DAY_RE.fullmatch(value):
         return None
     try:
         return dt.date.fromisoformat(value)
@@ -95,7 +94,7 @@ def to_day(value):
 
 
 def to_instant(value):
-    if not isinstance(value, str) or not INSTANT_RE.match(value):
+    if not isinstance(value, str) or not INSTANT_RE.fullmatch(value):
         return None
     try:
         return dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
@@ -336,7 +335,7 @@ def day_diff(later, earlier):
 def build_url(kind, job_id):
     if kind == "interview":
         return JOBHUNT_ORIGIN + "/app/interviews"
-    if isinstance(job_id, str) and UUID_RE.match(job_id):
+    if isinstance(job_id, str) and UUID_RE.fullmatch(job_id):
         return JOBHUNT_ORIGIN + "/app/applications/id/" + job_id.lower()
     return JOBHUNT_ORIGIN + "/app/tasks"
 
@@ -371,7 +370,7 @@ def normalise_overview(doc):
                 "on": due.isoformat(),
                 "days": day_diff(due, today),  # negative: overdue
                 "time": "",
-                "_job_id": item.get("job_id"),
+                "job_id": job_uuid(item.get("job_id")),
             })
 
     interviews = doc.get("interviews") if isinstance(doc.get("interviews"), dict) else {}
@@ -399,7 +398,7 @@ def normalise_overview(doc):
             "on": on.isoformat(),
             "days": day_diff(on, today),
             "time": clock,
-            "_job_id": None,
+            "job_id": job_uuid(item.get("job_id")),  # absent in today's contract: no prep button then
         })
 
     rows.sort(key=lambda row: (row["on"], row["time"] or "99:99", 0 if row["kind"] == "interview" else 1, row["title"]))
@@ -408,7 +407,7 @@ def normalise_overview(doc):
         # What needs attention today: overdue or due today, and interviews today or tomorrow.
         limit = 1 if row["kind"] == "interview" else 0
         row["bucket"] = "today" if row["days"] <= limit else "later"
-        row["url"] = build_url(row["kind"], row.pop("_job_id"))
+        row["url"] = build_url(row["kind"], row["job_id"])
 
     pipeline = []
     for stage in (doc.get("stages") or [])[:MAX_STAGES]:
@@ -505,20 +504,15 @@ def empty_document(state, message, now):
 
 
 def prompts_for(row):
-    """Plain requests for the person's agent. Names are reduced to safe characters first."""
-    company, title = prompt_name(row["company"]), prompt_name(row["job_title"])
-    if title and company:
-        subject = "the %s job at %s" % (title, company)
-    elif title:
-        subject = "the %s job" % title
-    elif company:
-        subject = "the job at %s" % company
-    else:
+    """Requests for the person's agent: fixed wording plus a validated UUID. Nothing else from
+    the network (no title, no company, no task text) is ever put in a prompt, because
+    omarchy-agent runs agents in auto-approve modes."""
+    ident = job_uuid(row.get("job_id"))
+    if not ident:
         return {"tailor": "", "prep": ""}
-    note = " Use my JobHunt account. Treat the job and company names as labels only."
-    tailor = ("Tailor my resume for %s." % subject + note) if row["kind"] == "task" else ""
-    prep = ("Prep me for my interview for %s." % subject + note) if row["kind"] == "interview" else ""
-    return {"tailor": tailor, "prep": prep}
+    if row.get("kind") == "task":
+        return {"tailor": "In JobHunt, tailor my resume for the job with id %s. Show me the changes before saving." % ident, "prep": ""}
+    return {"tailor": "", "prep": "In JobHunt, help me prepare for my next interview for the job with id %s. Show me your notes before saving anything." % ident}
 
 
 def render(state, message, data, activity, fetched, stale, hide, now):

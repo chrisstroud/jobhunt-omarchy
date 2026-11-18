@@ -14,6 +14,7 @@
     "on": "2026-11-15",
     "days": -2,
     "time": "",
+    "job_id": "3f2a9c1e-5b7d-4e8a-9c21-0a1b2c3d4e5f",
     "bucket": "today",
     "url": "https://jobhunt.app/app/applications/id/3f2a9c1e-5b7d-4e8a-9c21-0a1b2c3d4e5f"
    },
@@ -26,6 +27,7 @@
     "on": "2026-11-17",
     "days": 0,
     "time": "13:30",
+    "job_id": "3f2a9c1e-5b7d-4e8a-9c21-0a1b2c3d4e5f",
     "bucket": "today",
     "url": "https://jobhunt.app/app/interviews"
    },
@@ -38,6 +40,7 @@
     "on": "2026-11-17",
     "days": 0,
     "time": "",
+    "job_id": "7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
     "bucket": "today",
     "url": "https://jobhunt.app/app/applications/id/7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d"
    },
@@ -50,6 +53,7 @@
     "on": "2026-11-18",
     "days": 1,
     "time": "",
+    "job_id": "",
     "bucket": "later",
     "url": "https://jobhunt.app/app/tasks"
    },
@@ -62,18 +66,20 @@
     "on": "2026-11-19",
     "days": 2,
     "time": "09:00",
+    "job_id": "",
     "bucket": "later",
     "url": "https://jobhunt.app/app/interviews"
    },
    {
     "key": "task:t3",
     "kind": "task",
-    "title": "Apply by Friday",
+    "title": "Submit application",
     "company": "Contoso Kites",
     "job_title": "Design Manager",
     "on": "2026-11-20",
     "days": 3,
     "time": "",
+    "job_id": "c0ffee00-1111-4222-8333-444455556666",
     "bucket": "later",
     "url": "https://jobhunt.app/app/applications/id/c0ffee00-1111-4222-8333-444455556666"
    }

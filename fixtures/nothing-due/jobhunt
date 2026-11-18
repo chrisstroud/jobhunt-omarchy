@@ -1,0 +1,10 @@
+#!/bin/sh
+# Stand-in for the jobhunt command: answers from the JSON files beside it and makes no network
+# call. Point the plugin's "JobHunt command path" setting at this file to see this scenario.
+d=$(dirname "$0")
+case "$1" in
+  status) cat "$d/status.json" ;;
+  overview|activity) [ -e "$d/offline" ] && exit 1; cat "$d/$1.json" ;;
+  jobs) [ -e "$d/offline" ] && exit 1; cat "$d/jobs-save.json" ;;
+  *) exit 2 ;;
+esac

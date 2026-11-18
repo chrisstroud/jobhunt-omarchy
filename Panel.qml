@@ -20,7 +20,7 @@ Panel {
   readonly property string cmdInstall: "npm i -g jobhunt"
   readonly property string cmdLogin: "jobhunt auth login"
   readonly property string cmdMcp: "claude mcp add --transport http jobhunt https://jobhunt.app/mcp"
-  readonly property string promptNext: "Look at my JobHunt account and tell me what I should do next. Use my JobHunt account."
+  readonly property string promptNext: "In JobHunt, tell me what I should do next. Do not change anything."
 
   readonly property bool needsSetup: jobhunt.dataState === "cli_missing" || jobhunt.dataState === "signed_out"
   readonly property var todayRows: jobhunt.due.filter(function(row) { return row.bucket === "today" })
@@ -89,9 +89,19 @@ Panel {
     return accepted
   }
 
-  // Hand a plain request to the person's own terminal agent. The prompt is one argv item.
+  // Requests to the person's own terminal agent. omarchy-agent runs agents in auto-approve modes,
+  // so every prompt is fixed wording (this file, or the helper's fixed templates) plus at most a
+  // UUID the helper validated. The exact text is shown and nothing launches until it is confirmed.
+  property string pendingPrompt: ""
+
   function askAgent(prompt) {
-    var text = String(prompt || "")
+    pendingPrompt = String(prompt || "")
+    if (panelFlick) panelFlick.contentY = 0  // the confirmation sits at the top of the panel
+  }
+
+  function launchPending() {
+    var text = pendingPrompt
+    pendingPrompt = ""
     if (text === "") return
     Util.execArgv(["omarchy-agent", "--prompt", text])
     close()
@@ -133,6 +143,7 @@ Panel {
     } else {
       // A copied link must not wait around for the next open.
       jobhunt.cancelSave()
+      pendingPrompt = ""
     }
   }
   onSettingsChanged: applyHostSettings()
@@ -269,6 +280,61 @@ Panel {
               font.family: root.fontFamily
               font.pixelSize: Style.font.bodySmall
               text: jobhunt.message + (jobhunt.hasData ? " This is what was read " + root.ageText(jobhunt.fetchedAt) + "." : "")
+            }
+          }
+
+          // The exact request, shown before it is sent to the agent.
+          BorderSurface {
+            visible: root.pendingPrompt !== ""
+            width: parent.width
+            implicitHeight: promptColumn.implicitHeight + Style.space(20)
+            color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.06)
+            borderSpec: Border.flat(Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.25), 1)
+            radius: Style.cornerRadius
+            Column {
+              id: promptColumn
+              anchors.left: parent.left
+              anchors.right: parent.right
+              anchors.verticalCenter: parent.verticalCenter
+              anchors.margins: Style.space(10)
+              spacing: Style.space(6)
+              Text {
+                width: parent.width
+                textFormat: Text.PlainText
+                wrapMode: Text.WordWrap
+                color: root.dim
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+                text: "This exact request will be sent to your agent, which may act on your JobHunt account:"
+              }
+              Text {
+                width: parent.width
+                textFormat: Text.PlainText
+                wrapMode: Text.WrapAnywhere
+                color: root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.bodySmall
+                text: root.pendingPrompt
+              }
+              Row {
+                spacing: Style.space(8)
+                Button {
+                  text: "Send to my agent"
+                  bordered: true
+                  foreground: root.foreground
+                  fontFamily: root.fontFamily
+                  fontSize: Style.font.caption
+                  onClicked: root.launchPending()
+                }
+                Button {
+                  text: "Cancel"
+                  bordered: true
+                  foreground: root.foreground
+                  fontFamily: root.fontFamily
+                  fontSize: Style.font.caption
+                  onClicked: root.pendingPrompt = ""
+                }
+              }
             }
           }
 
@@ -516,7 +582,7 @@ Panel {
             Toggle {
               width: parent.width
               label: "Hide company names"
-              description: "For shared screens. Names stay out of this panel and out of requests to your agent."
+              description: "For shared screens. Names stay out of this panel."
               checked: jobhunt.hideCompany
               foreground: root.foreground
               accent: Color.accent

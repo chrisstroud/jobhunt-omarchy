@@ -29,6 +29,8 @@ Item {
   property string saveMessage: ""
 
   readonly property bool hideCompany: boolSetting("hideCompanyNames", false)
+  // Off: nothing runs in the background; data loads when the panel opens or refresh is pressed.
+  readonly property bool backgroundRefresh: boolSetting("backgroundRefresh", true)
   readonly property int refreshIntervalSec: intSetting("refreshIntervalSec", 900, 300, 3600)
   readonly property string cliPath: String(setting("cliPath", "") || "")
   readonly property string linkBehavior: String(setting("linkBehavior", "Browser tab")).toLowerCase() === "web app window" ? "Web app window" : "Browser tab"
@@ -67,7 +69,7 @@ Item {
     if (settingsReady) return
     settings = initialSettings || {}
     settingsReady = true
-    refresh()
+    if (backgroundRefresh) refresh()
   }
 
   function refresh() {
@@ -135,7 +137,7 @@ Item {
   Timer {
     interval: root.refreshIntervalSec * 1000
     repeat: true
-    running: root.settingsReady
+    running: root.settingsReady && root.backgroundRefresh
     onTriggered: root.refresh()
   }
 
