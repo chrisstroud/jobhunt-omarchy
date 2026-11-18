@@ -244,7 +244,6 @@ Panel {
                 tooltipText: jobhunt.loading ? "Reading JobHunt" : "Refresh"
                 foreground: root.foreground
                 fontFamily: root.fontFamily
-                iconSpinning: jobhunt.loading
                 onClicked: jobhunt.refresh()
               }
             }
