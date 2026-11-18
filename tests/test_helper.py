@@ -39,7 +39,13 @@ class Fixtures(unittest.TestCase):
         m = d["momentum"]
         self.assertEqual((m["active_days"], m["recorded_actions"], m["window_days"]), (10, 24, 28))
         self.assertNotIn("streak", json.dumps(d).lower())
-        self.assertTrue(all(r["prompts"]["tailor"] == "" for r in d["due"]))  # contract tasks have no job_id
+        # The contract's example task with a job opens its application; the general task opens the workspace home.
+        by_title = {r["title"]: r for r in d["due"]}
+        self.assertEqual(by_title["Send a thank-you note"]["url"], "https://jobhunt.app/app/applications/id/00000000-0000-4000-8000-0000000000b1")
+        self.assertEqual(by_title["Phone screen"]["url"], "https://jobhunt.app/app/applications/id/00000000-0000-4000-8000-0000000000b1")
+        self.assertEqual(by_title["Update the sample resume"]["url"], "https://jobhunt.app/app")
+        self.assertEqual(by_title["Update the sample resume"]["prompts"]["tailor"], "")
+        self.assertEqual(by_title["Phone screen"]["prompts"]["tailor"], "")  # only tasks get an agent prompt
 
     def test_busy_day(self):
         d = run(["snapshot"], "busy-day")
@@ -50,10 +56,16 @@ class Fixtures(unittest.TestCase):
         self.assertNotIn("Hiring manager chat", [r["title"] for r in d["due"]])  # cancelled
         panel = next(r for r in d["due"] if r["title"] == "Panel interview")
         self.assertEqual(panel["time"], "13:30")  # 21:30Z in Los Angeles
-        self.assertEqual(panel["prompts"], {"tailor": ""})  # interviews carry no id in the contract
+        self.assertEqual(panel["prompts"], {"tailor": ""})  # only tasks get an agent prompt
+        self.assertEqual(panel["url"], "https://jobhunt.app/app/applications/id/3f2a9c1e-5b7d-4e8a-9c21-0a1b2c3d4e5f")  # an interview opens its application
         task = next(r for r in d["due"] if r["title"] == "Send thank-you note")
         self.assertEqual(task["prompts"]["tailor"], "In JobHunt, tailor my resume for the job with id 3f2a9c1e-5b7d-4e8a-9c21-0a1b2c3d4e5f. Show me the changes before saving.")
         self.assertTrue(all(r["url"].startswith("https://jobhunt.app/app") for r in d["due"]))
+        # Rows open the application they belong to; one with none opens the workspace home. Never a list page.
+        general = next(r for r in d["due"] if r["title"] == "Update portfolio")
+        self.assertEqual(general["url"], "https://jobhunt.app/app")
+        self.assertEqual(task["url"], "https://jobhunt.app/app/applications/id/" + task["job_id"])
+        self.assertFalse([r for r in d["due"] if r["url"].rstrip("/").endswith(("/app/tasks", "/app/interviews"))])
         self.assertEqual([s["name"] for s in d["pipeline"]], ["To Apply", "Applied", "Interviewing", "Offer", "Closed"])
         self.assertEqual(sum(len(w) for w in d["momentum"]["weeks"]) % 7, 0)
         self.assertNotIn("streak", json.dumps(d).lower())

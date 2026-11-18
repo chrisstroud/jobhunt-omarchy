@@ -102,8 +102,7 @@ The code is MIT licensed (see LICENSE). The emblem is JobHunt's mark and is incl
 
 ## Open questions
 
-- The app paths used for row links (`/app/applications/id/<uuid>`, `/app/tasks`, `/app/interviews`) are unconfirmed: they were read from the product source, not tried against jobhunt.app.
-- The overview does not report a job id on interview rounds, so interview rows have no agent button until it does.
+- Row links: a task or interview opens its application (`/app/applications/id/<uuid>`, where the job's timeline is); one with no application opens `/app`. The application route is confirmed in the product source; the overview gives interview rounds a job id from the server release that carries issue #1230. Until that is live, interview rows open `/app`.
 - Strings are English only.
 
 ## Development

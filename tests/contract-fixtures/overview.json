@@ -48,8 +48,13 @@
         "id": "00000000-0000-4000-8000-0000000000a1",
         "title": "Send a thank-you note",
         "due": "2026-11-16",
-        "job_id": null,
-        "due_days": 2
+        "job_id": "00000000-0000-4000-8000-0000000000b1",
+        "application_url": "https://jobhunt.app/app/applications/id/00000000-0000-4000-8000-0000000000b1",
+        "due_days": 2,
+        "job": {
+          "company": "Example Co",
+          "title": "Sample Engineer"
+        }
       }
     ],
     "due_in_next_7_days": [
@@ -58,6 +63,7 @@
         "title": "Update the sample resume",
         "due": "2026-11-20",
         "job_id": null,
+        "application_url": null,
         "due_in_days": 2
       }
     ],
@@ -69,8 +75,10 @@
         "round": "Phone screen",
         "scheduled_at": "2026-11-19T17:00:00Z",
         "on": "2026-11-19",
+        "job_id": "00000000-0000-4000-8000-0000000000b1",
         "company": "Example Co",
-        "title": "Sample Engineer"
+        "title": "Sample Engineer",
+        "application_url": "https://jobhunt.app/app/applications/id/00000000-0000-4000-8000-0000000000b1"
       }
     ],
     "total": 1
