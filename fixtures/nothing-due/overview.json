@@ -1,0 +1,77 @@
+{
+ "ok": true,
+ "today": "2026-11-17",
+ "time_zone": "America/Los_Angeles",
+ "time_zone_saved": true,
+ "account": {
+  "id": "x",
+  "name": "Sample Person"
+ },
+ "setup": [],
+ "setup_complete": true,
+ "access": null,
+ "hunt": {
+  "id": "h1",
+  "name": "Spring search",
+  "status": "active"
+ },
+ "stages": [
+  {
+   "name": "To Apply",
+   "type": "to_apply",
+   "jobs": 6,
+   "final": false
+  },
+  {
+   "name": "Applied",
+   "type": "applied",
+   "jobs": 9,
+   "final": false
+  },
+  {
+   "name": "Interviewing",
+   "type": "interviewing",
+   "jobs": 2,
+   "final": false
+  },
+  {
+   "name": "Offer",
+   "type": "offer",
+   "jobs": 0,
+   "final": false
+  },
+  {
+   "name": "Closed",
+   "type": "closed",
+   "jobs": 4,
+   "final": true
+  }
+ ],
+ "jobs_total": 21,
+ "tasks": {
+  "overdue": [],
+  "due_in_next_7_days": [],
+  "complete": true
+ },
+ "interviews": {
+  "rounds": [],
+  "total": 0
+ },
+ "applied": {
+  "jobs": [],
+  "total": 9
+ },
+ "offers": {
+  "jobs": [],
+  "total": 0
+ },
+ "reading_link": {
+  "jobs": [],
+  "total": 0
+ },
+ "covers": "Sample.",
+ "not_included": {},
+ "resume": null,
+ "missing": [],
+ "website_url": "https://jobhunt.app/app"
+}
