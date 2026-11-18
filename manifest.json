@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "id": "jobhunt.app",
+  "name": "JobHunt",
+  "version": "0.1.0",
+  "author": "JobHunt",
+  "license": "MIT",
+  "description": "See what needs you today in your job search, and your streak, right from the bar.",
+  "kinds": ["bar-widget"],
+  "activation": "on-demand",
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "JobHunt",
+    "description": "One quiet number for what is due today (interviews, tasks, follow-ups), and a panel with today's items, your streak, your pipeline and hand-offs to your own agent. Needs the JobHunt command line tool and an account at jobhunt.app.",
+    "category": "Productivity",
+    "aliases": ["jobhunt", "job", "jobs", "hunt", "interviews", "applications"],
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "refreshIntervalSec": 900,
+      "hideCompanyNames": false,
+      "linkBehavior": "Browser tab",
+      "cliPath": ""
+    },
+    "schema": [
+      { "key": "refreshIntervalSec", "type": "integer", "label": "Refresh interval (seconds)", "min": 300, "max": 3600, "step": 60, "defaultValue": 900, "description": "How often the JobHunt command is run in the background. It is also run when you open the panel." },
+      { "key": "hideCompanyNames", "type": "boolean", "label": "Hide company names", "defaultValue": false, "description": "For shared screens. Company names stay out of the panel and out of requests sent to your agent." },
+      { "key": "linkBehavior", "type": "enum", "label": "Open links", "options": ["Browser tab", "Web app window"], "defaultValue": "Browser tab", "description": "Open jobhunt.app in a browser tab, or in a dedicated web app window (needs a Chromium-based default browser)." },
+      { "key": "cliPath", "type": "path", "label": "JobHunt command path", "defaultValue": "", "description": "Optional. Full path to the jobhunt command if it is not found on the shell's PATH." }
+    ]
+  }
+}
