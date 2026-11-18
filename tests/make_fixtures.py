@@ -108,9 +108,9 @@ busy_soon = [
     {"id": "t3", "title": "Submit application", "due": "2026-11-20", "due_in_days": 3, "job_id": U[2], "job": {"company": "Contoso Kites", "title": "Design Manager"}},
     {"id": "t4", "title": "Update portfolio", "due": "2026-11-18", "due_in_days": 1, "job_id": None}]
 busy_rounds = [
-    {"round": "Panel interview", "scheduled_at": "2026-11-17T21:30:00Z", "on": "2026-11-17", "company": "Northwind Mills", "title": "Staff Designer"},
-    {"round": "Phone screen", "scheduled_at": "2026-11-19T17:00:00Z", "on": "2026-11-19", "company": "Fabrikam Harbor", "title": "Product Lead"},
-    {"round": "Hiring manager chat", "scheduled_at": "2026-11-18T18:00:00Z", "on": "2026-11-18", "company": "Contoso Kites", "title": "Design Manager", "status": "cancelled"}]
+    {"round": "Panel interview", "scheduled_at": "2026-11-17T21:30:00Z", "on": "2026-11-17", "company": "Northwind Mills", "title": "Staff Designer", "job_id": U[0], "application_url": "https://jobhunt.app/app/applications/id/" + U[0]},
+    {"round": "Phone screen", "scheduled_at": "2026-11-19T17:00:00Z", "on": "2026-11-19", "company": "Fabrikam Harbor", "title": "Product Lead", "job_id": U[1], "application_url": "https://jobhunt.app/app/applications/id/" + U[1]},
+    {"round": "Hiring manager chat", "scheduled_at": "2026-11-18T18:00:00Z", "on": "2026-11-18", "company": "Contoso Kites", "title": "Design Manager", "status": "cancelled", "job_id": U[2], "application_url": "https://jobhunt.app/app/applications/id/" + U[2]}]
 
 
 def activity(seed, density, days=365):

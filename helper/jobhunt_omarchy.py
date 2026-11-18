@@ -379,11 +379,11 @@ def day_diff(later, earlier):
 
 
 def build_url(kind, job_id):
-    if kind == "interview":
-        return JOBHUNT_ORIGIN + "/app/interviews"
+    """A task or interview opens the application it belongs to, where the person follows the work and its
+    timeline. One with no application opens the workspace home, never a list of tasks or interviews."""
     if isinstance(job_id, str) and UUID_RE.fullmatch(job_id):
         return JOBHUNT_ORIGIN + "/app/applications/id/" + job_id.lower()
-    return JOBHUNT_ORIGIN + "/app/tasks"
+    return JOBHUNT_ORIGIN + "/app"
 
 
 def normalise_overview(doc):
@@ -444,7 +444,7 @@ def normalise_overview(doc):
             "on": on.isoformat(),
             "days": day_diff(on, today),
             "time": clock,
-            "job_id": "",  # the contract gives rounds no id, so interviews carry no agent prompt
+            "job_id": job_uuid(item.get("job_id")),  # rounds carry their job's id; only tasks get an agent prompt
         })
 
     rows.sort(key=lambda row: (row["on"], row["time"] or "99:99", 0 if row["kind"] == "interview" else 1, row["title"]))
