@@ -53,7 +53,7 @@ The same data can be read in a terminal: `JOBHUNT_OMARCHY_FIXTURE=fixtures/busy-
 
 ## 4. Check by eye
 
-1. The mark is sharp at bar size, and the light and dark variants suit your theme.
+1. The bar shows the JobHunt figure alone, with no box, in the same colour as the neighbouring bar icons, and it follows a theme change. It is sharp at bar size; `docs/bar-icon-preview.png` shows it at 16 and 20 px on a dark and a light bar, with a count.
 2. With a number showing, the icon and number are centred together and the widget does not push neighbours oddly. Also with no number.
 3. The panel opens under the icon, fits (scrolls if tall), closes with Escape and outside click, and `r` refreshes.
 4. The activity graph: 53 columns fit the width, cell colours follow the theme accent, and hovering a cell shows a tooltip.

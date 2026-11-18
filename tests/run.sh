@@ -8,6 +8,9 @@ step() { printf '\n== %s\n' "$1"; }
 step "helper tests (all fixtures, safety, stand-in CLI)"
 python3 tests/test_helper.py || fail=1
 
+step "bar icon (the figure from the brand emblem, in the bar's foreground, no plate)"
+python3 tests/bar_figure.py --check || fail=1
+
 step "manifest rules"
 jq -e '.schemaVersion == 1 and .id == "jobhunt.app" and (.description | length) < 120 and (.kinds | index("bar-widget")) and .barWidget.schema' manifest.json >/dev/null \
   && echo ok || { echo "manifest check failed"; fail=1; }
