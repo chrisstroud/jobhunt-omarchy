@@ -32,9 +32,15 @@ omarchy plugin add https://github.com/chrisstroud/jobhunt-omarchy --enable
 Then install the command and sign in:
 
 ```
-npm i -g jobhunt
+npm i -g jobhunt@0.1.1
 jobhunt auth login
 ```
+
+The plugin works with this exact version of the command, never the moving `latest` tag. To check what you installed:
+
+- **Version:** `0.1.1`.
+- **Integrity:** `sha512-HQohiH3dPnWs8rEuF98M19CHoel6HAYoOvE1knstRdLkHBly2AKGVPRTWe5XDsjYFDEt5LujWb+Ug6ECpVpmFA==` (`npm view jobhunt@0.1.1 dist.integrity` must print this).
+- **Source:** https://github.com/chrisstroud/jobhunt-cli, commit `f7087642acd1213edd63342f87b0354b3840930c`. The package names this repository in its `repository` field.
 
 You can also sign in from the panel: with the command installed, "Sign in to JobHunt" runs `jobhunt auth login` (no flags) and JobHunt opens in your browser for you to approve. The panel has "Sign out of JobHunt" too (it runs `jobhunt auth logout` after you confirm and clears the plugin's saved data). The plugin never sees or stores your sign-in; the command does. Optional, to let Claude Code use JobHunt too (this plugin does not run it for you):
 
@@ -81,7 +87,7 @@ Open the widget's settings in Omarchy, or use the toggle in the panel.
 
 ## Troubleshooting
 
-- **Icon is dim, panel says the command is not installed:** run `npm i -g jobhunt`. If it is installed somewhere the shell does not see, set "JobHunt command path".
+- **Icon is dim, panel says the command is not installed:** run `npm i -g jobhunt@0.1.1`. If it is installed somewhere the shell does not see, set "JobHunt command path".
 - **Signed out:** press "Sign in to JobHunt" in the panel (or run `jobhunt auth login`), then press "Check again".
 - **Rate limited:** the panel says JobHunt asked for a short pause and keeps the last data; the plugin waits the time JobHunt gave before reading again. It never reads more than once a minute.
 - **Offline:** the panel shows the last data it read and how old it is.
