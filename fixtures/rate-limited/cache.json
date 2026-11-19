@@ -1,5 +1,6 @@
 {
  "schema": 1,
+ "version": 2,
  "fetched_at": "2026-11-17T09:00:00Z",
  "data": {
   "today": "2026-11-17",
@@ -116,7 +117,55 @@
     "final": true
    }
   ],
-  "jobs_total": 21
+  "jobs_total": 21,
+  "account": {
+   "name": "Morgan Reyes"
+  },
+  "access": {
+   "kind": "trial",
+   "days_left": 5
+  },
+  "hunt": {
+   "name": "Sample Hunt"
+  },
+  "resume": {
+   "name": "Sample resume"
+  },
+  "applied": [
+   {
+    "company": "Fabrikam Harbor",
+    "title": "Product Lead",
+    "days": 4
+   },
+   {
+    "company": "Orchard & Pine",
+    "title": "Design Lead",
+    "days": 6
+   },
+   {
+    "company": "Lumen Works",
+    "title": "Senior Product Designer",
+    "days": 8
+   }
+  ],
+  "interviewing": [
+   {
+    "company": "Northwind Mills",
+    "title": "Staff Designer",
+    "round": "Panel interview",
+    "on": "2026-11-17",
+    "days": 0,
+    "time": "13:30"
+   },
+   {
+    "company": "Fabrikam Harbor",
+    "title": "Product Lead",
+    "round": "Phone screen",
+    "on": "2026-11-19",
+    "days": 2,
+    "time": "09:00"
+   }
+  ]
  },
  "activity": {
   "window_days": 365,

@@ -1,0 +1,172 @@
+{
+ "ok": true,
+ "today": "2026-11-17",
+ "time_zone": "America/Los_Angeles",
+ "time_zone_saved": true,
+ "account": {
+  "id": "00000000-0000-4000-8000-000000000001",
+  "name": "Morgan Reyes"
+ },
+ "setup": [],
+ "setup_complete": true,
+ "access": {
+  "kind": "read_only",
+  "ends_at": null,
+  "ends_on": null,
+  "days_left": null,
+  "next": "Written for an assistant; the plugin never shows it."
+ },
+ "hunt": {
+  "id": "sample-hunt",
+  "name": "Sample Hunt",
+  "status": "active"
+ },
+ "stages": [
+  {
+   "name": "To Apply",
+   "type": "saved",
+   "jobs": 6,
+   "final": false
+  },
+  {
+   "name": "Applied",
+   "type": "applied",
+   "jobs": 9,
+   "final": false
+  },
+  {
+   "name": "Interviewing",
+   "type": "interview",
+   "jobs": 2,
+   "final": false
+  },
+  {
+   "name": "Offer",
+   "type": "offer",
+   "jobs": 0,
+   "final": false
+  },
+  {
+   "name": "Closed",
+   "type": "closed",
+   "jobs": 4,
+   "final": true
+  }
+ ],
+ "jobs_total": 21,
+ "tasks": {
+  "overdue": [
+   {
+    "id": "t1",
+    "title": "Send thank-you note",
+    "due": "2026-11-15",
+    "due_days": 2,
+    "job_id": "3f2a9c1e-5b7d-4e8a-9c21-0a1b2c3d4e5f",
+    "job": {
+     "company": "Northwind Mills",
+     "title": "Staff Designer"
+    }
+   }
+  ],
+  "due_in_next_7_days": [
+   {
+    "id": "t2",
+    "title": "Follow up on application",
+    "due": "2026-11-17",
+    "due_in_days": 0,
+    "job_id": "7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+    "job": {
+     "company": "Fabrikam Harbor",
+     "title": "Product Lead"
+    }
+   },
+   {
+    "id": "t3",
+    "title": "Submit application",
+    "due": "2026-11-20",
+    "due_in_days": 3,
+    "job_id": "c0ffee00-1111-4222-8333-444455556666",
+    "job": {
+     "company": "Contoso Kites",
+     "title": "Design Manager"
+    }
+   },
+   {
+    "id": "t4",
+    "title": "Update portfolio",
+    "due": "2026-11-18",
+    "due_in_days": 1,
+    "job_id": null
+   }
+  ],
+  "complete": true
+ },
+ "interviews": {
+  "rounds": [
+   {
+    "round": "Panel interview",
+    "scheduled_at": "2026-11-17T21:30:00Z",
+    "on": "2026-11-17",
+    "company": "Northwind Mills",
+    "title": "Staff Designer"
+   },
+   {
+    "round": "Phone screen",
+    "scheduled_at": "2026-11-19T17:00:00Z",
+    "on": "2026-11-19",
+    "company": "Fabrikam Harbor",
+    "title": "Product Lead"
+   },
+   {
+    "round": "Hiring manager chat",
+    "scheduled_at": "2026-11-18T18:00:00Z",
+    "on": "2026-11-18",
+    "company": "Contoso Kites",
+    "title": "Design Manager",
+    "status": "cancelled"
+   }
+  ],
+  "total": 3
+ },
+ "applied": {
+  "jobs": [
+   {
+    "company": "Fabrikam Harbor",
+    "title": "Product Lead",
+    "stage_days": 4
+   },
+   {
+    "company": "Orchard & Pine",
+    "title": "Design Lead",
+    "stage_days": 6
+   },
+   {
+    "company": "Lumen Works",
+    "title": "Senior Product Designer",
+    "stage_days": 8
+   }
+  ],
+  "total": 9
+ },
+ "offers": {
+  "jobs": [],
+  "total": 0
+ },
+ "reading_link": {
+  "jobs": [],
+  "total": 0
+ },
+ "covers": "Stage counts; tasks overdue or due by 2026-11-25; interviews 2026-11-18 to 2026-11-25; Applied and offer jobs, longest in stage first; links being read. Only what JobHunt recorded: email and calendars are not read, so nothing recorded is not the same as nothing happened.",
+ "not_included": {
+  "tasks with no due date": "list_tasks",
+  "contacts and conversations": "list_contacts",
+  "documents": "list_documents",
+  "jobs in other stages": "list_jobs"
+ },
+ "resume": {
+  "id": "00000000-0000-4000-8000-0000000000b1",
+  "name": "Sample resume"
+ },
+ "missing": [],
+ "website_url": "https://jobhunt.example/app"
+}

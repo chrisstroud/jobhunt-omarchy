@@ -5,16 +5,16 @@
  "time_zone_saved": true,
  "account": {
   "id": "00000000-0000-4000-8000-000000000001",
-  "name": "Sample Person"
+  "name": "Morgan Reyes"
  },
  "setup": [],
  "setup_complete": true,
  "access": {
   "kind": "trial",
-  "ends_at": "2026-11-25T08:00:00Z",
-  "ends_on": "2026-11-25",
-  "days_left": 7,
-  "next": "On 2026-11-25 the account becomes read-only: saved work can still be viewed and exported, and changes need a subscription, described at https://jobhunt.example/pricing; mention this only when the person asks about cost or access, or once when 3 days or fewer remain."
+  "ends_at": "2026-11-22T08:00:00Z",
+  "ends_on": "2026-11-22",
+  "days_left": 5,
+  "next": "Written for an assistant; the plugin never shows it."
  },
  "hunt": {
   "id": "sample-hunt",
@@ -131,12 +131,22 @@
  "applied": {
   "jobs": [
    {
-    "company": "Example Co",
-    "title": "Sample Engineer",
+    "company": "Fabrikam Harbor",
+    "title": "Product Lead",
     "stage_days": 4
+   },
+   {
+    "company": "Orchard & Pine",
+    "title": "Design Lead",
+    "stage_days": 6
+   },
+   {
+    "company": "Lumen Works",
+    "title": "Senior Product Designer",
+    "stage_days": 8
    }
   ],
-  "total": 2
+  "total": 9
  },
  "offers": {
   "jobs": [],
