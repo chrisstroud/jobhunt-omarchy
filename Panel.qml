@@ -23,7 +23,7 @@ Panel {
   // Filled with the bar's foreground, as the other bar icons are; no plate, border or tile.
   readonly property string barFigure: "M7.71 4.74 L10.65 2.35 L14.53 4.74 L13.31 6.63 L13.08 8.17 L11.95 9.74 L10.96 9.7 L9.83 8.03 L8.26 8.48 L7.67 7.94 Z M10.6 6.45 L13.31 6.63 L13.08 8.17 L11.95 9.74 L10.96 9.7 L9.83 8.03 Z M0 21.65 L2.44 11.05 L7.8 8.44 L11.86 11.41 L13.62 16.56 L12.23 17.01 L9.52 21.65 Z M7.76 16.33 L11.95 16.15 L14.17 16.6 L15.56 16.78 L16.96 17.5 L17.41 18.09 L15.47 18.05 L14.17 17.95 L11.82 17.73 L7.8 17.32 Z M20.39 18.23 L22.56 11.55 L24 11.55 L21.83 18.23 Z M9.38 17.77 L22.02 17.77 L21.56 19.04 L9.11 19.04 Z"
 
-  readonly property string cmdInstall: "npm i -g jobhunt@0.1.1"
+  readonly property string cmdInstall: "npm i -g jobhunt@0.1.2"
   readonly property string cmdLogin: "jobhunt auth login"
   readonly property string cmdMcp: "claude mcp add --transport http jobhunt https://jobhunt.app/mcp"
   readonly property string promptNext: "In JobHunt, tell me what I should do next. Do not change anything."
