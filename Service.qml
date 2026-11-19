@@ -29,6 +29,20 @@ Item {
   property var pipeline: []
   property int jobsTotal: 0
   property var momentum: ({ available: false, window_days: 0, recorded_actions: 0, active_days: 0, weeks: [] })
+  // Account, plan and what the pipeline names (all read through the command the plugin already runs).
+  property var account: ({ name: "" })
+  property var access: ({ kind: "", days_left: null })   // kind: free | trial | subscribed | read_only | review | "" (unknown: no chip)
+  property var hunt: ({ name: "" })
+  property var resume: ({ name: "" })
+  property var rawApplied: []
+  property var rawInterviewing: []
+  readonly property var applied: blankCompanies(rawApplied)
+  readonly property var interviewing: blankCompanies(rawInterviewing)
+  // The installed command: its version and which newer views it can serve. Unknown counts as old.
+  property var cli: ({ version: "", features: ({ board: false, docs: false, page: false, find: false, add: false }) })
+  // "0.1.0" on the first read after the update from plugin 0.1.0; the panel turns it into a one-time note.
+  property string upgradedFrom: ""
+  readonly property bool readOnly: access.kind === "read_only"
 
   // Save from clipboard: idle | reading | confirm | saving | done | failed
   property string saveState: "idle"
@@ -58,6 +72,15 @@ Item {
   property double lastStartMs: 0
   property double notBeforeMs: 0
   property int retryAfterSec: 0
+
+  function blankCompanies(rows) {
+    return hideCompany ? rows.map(function(row) {
+      var copy = {}
+      for (var key in row) copy[key] = row[key]
+      copy.company = ""
+      return copy
+    }) : rows
+  }
 
   onHideCompanyChanged: if (settingsReady) refresh()
   onCliPathChanged: if (settingsReady) refresh(true)
@@ -127,6 +150,16 @@ Item {
     pipeline = Array.isArray(doc.pipeline) ? doc.pipeline : []
     jobsTotal = Number(doc.jobs_total) || 0
     momentum = doc.momentum && Array.isArray(doc.momentum.weeks) ? doc.momentum : { available: false, window_days: 0, recorded_actions: 0, active_days: 0, weeks: [] }
+    account = doc.account && typeof doc.account === "object" ? doc.account : { name: "" }
+    access = doc.access && typeof doc.access === "object" ? doc.access : { kind: "", days_left: null }
+    hunt = doc.hunt && typeof doc.hunt === "object" ? doc.hunt : { name: "" }
+    resume = doc.resume && typeof doc.resume === "object" ? doc.resume : { name: "" }
+    rawApplied = Array.isArray(doc.applied) ? doc.applied : []
+    rawInterviewing = Array.isArray(doc.interviewing) ? doc.interviewing : []
+    var features = doc.cli && doc.cli.features && typeof doc.cli.features === "object" ? doc.cli.features : {}
+    cli = { version: String(doc.cli && doc.cli.version || ""), features: {
+      board: features.board === true, docs: features.docs === true, page: features.page === true, find: features.find === true, add: features.add === true } }
+    upgradedFrom = String(doc.upgraded_from || "")
   }
 
   // The clipboard is read only when the person asks, shown, and saved only after a second click.

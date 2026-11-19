@@ -118,6 +118,104 @@ PROMPT_RE = (r"^In JobHunt, tailor my resume for the job with id %(u)s\. Show me
              % {"u": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"})
 
 
+class Account(unittest.TestCase):
+    """The footer, the role previews, the command's version and the 0.1.0 to 0.2.0 upgrade."""
+
+    def test_trial_footer_data(self):
+        d = run(["snapshot"], "busy-day")
+        self.assertEqual(d["account"], {"name": "Morgan Reyes"})
+        self.assertEqual(d["access"], {"kind": "trial", "days_left": 5})
+        self.assertEqual(d["hunt"]["name"], "Sample Hunt")
+        self.assertNotIn("assistant", json.dumps(d["access"]))  # `next` is written for an assistant; never carried
+
+    def test_every_plan_state(self):
+        for name, kind, days in (("plan-subscribed", "subscribed", None), ("plan-read-only", "read_only", None),
+                                 ("plan-free", "free", None), ("plan-review", "review", None)):
+            d = run(["snapshot"], name)
+            self.assertEqual(d["access"], {"kind": kind, "days_left": days}, name)
+            self.assertNotIn("Written for an assistant", json.dumps(d), name)
+
+    def test_unknown_plan_state_shows_nothing(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("h", HELPER); h = importlib.util.module_from_spec(spec); spec.loader.exec_module(h)
+        self.assertEqual(h.normalise_access({"kind": "gold_tier", "days_left": 3}), {"kind": "", "days_left": None})
+        self.assertEqual(h.normalise_access(None), {"kind": "", "days_left": None})
+        self.assertEqual(h.normalise_access({"kind": "trial", "days_left": True}), {"kind": "trial", "days_left": None})
+        self.assertEqual(h.normalise_access({"kind": "subscribed", "days_left": 9}), {"kind": "subscribed", "days_left": None})
+
+    def test_role_previews_and_hide(self):
+        d = run(["snapshot"], "busy-day")
+        self.assertEqual([(r["company"], r["title"], r["days"]) for r in d["applied"]],
+                         [("Fabrikam Harbor", "Product Lead", 4), ("Orchard & Pine", "Design Lead", 6), ("Lumen Works", "Senior Product Designer", 8)])
+        self.assertEqual([(r["company"], r["title"]) for r in d["interviewing"]], [("Northwind Mills", "Staff Designer"), ("Fabrikam Harbor", "Product Lead")])
+        hidden = run(["snapshot", "--hide-company"], "busy-day")
+        text = json.dumps(hidden)
+        for name in ("Northwind", "Fabrikam", "Contoso", "Orchard", "Lumen"):
+            self.assertNotIn(name, text)
+        self.assertIn("Design Lead", text)
+
+    def test_command_version_and_features(self):
+        old = run(["snapshot"], "busy-day")["cli"]  # no version.txt: the stand-in answers 0.1.2
+        self.assertEqual(old["version"], "0.1.2")
+        self.assertFalse(any(old["features"].values()))
+        new = run(["snapshot"], "new-cli")["cli"]
+        self.assertEqual(new["version"], "0.2.0")
+        self.assertTrue(all(new["features"].values()))
+        self.assertEqual(sorted(new["features"]), ["add", "board", "docs", "find", "page"])
+
+    def test_unreadable_version_counts_as_old(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("h", HELPER); h = importlib.util.module_from_spec(spec); spec.loader.exec_module(h)
+        for text in ("", "banana", "0.2", "999999.0.0", "0.2.0; rm -rf /", None):
+            self.assertIsNone(h.parse_cli_version(text), repr(text))
+        self.assertEqual(h.parse_cli_version("v0.2.1"), (0, 2, 1))
+        self.assertEqual(h.parse_cli_version("1.0.0-beta.1"), (1, 0, 0))
+
+    def test_cache_from_0_1_0_is_migrated_not_dropped(self):
+        d = run(["snapshot"], "upgrade-from-0-1-0")
+        self.assertEqual(d["upgraded_from"], "0.1.0")  # the panel shows "What's new" once, until dismissed
+        self.assertEqual((d["state"], d["has_data"], d["stale"]), ("ok", True, False))
+        # With the command unreachable the old cache still shows, with the new fields defaulted.
+        with tempfile.TemporaryDirectory() as tmp:
+            fixture = os.path.join(tmp, "f")
+            shutil.copytree(os.path.join(FIX, "upgrade-from-0-1-0"), fixture)
+            os.remove(os.path.join(fixture, "overview.json"))
+            with open(os.path.join(fixture, "error-overview.json"), "w") as f:
+                json.dump({"error": {"code": "unreachable", "status": 0}}, f)
+            with open(os.path.join(fixture, "error-overview.code"), "w") as f:
+                f.write("7\n")
+            e = dict(CLEAN_ENV, JOBHUNT_OMARCHY_FIXTURE=fixture)
+            p = subprocess.run([sys.executable, HELPER, "snapshot"], env=e, capture_output=True, text=True, timeout=60)
+            doc = json.loads(p.stdout)
+        self.assertEqual((doc["state"], doc["has_data"], doc["stale"]), ("offline", True, True))
+        self.assertEqual(doc["due_count"], 3)  # what 0.1.0 had cached is still shown
+        self.assertEqual((doc["account"], doc["access"], doc["applied"]), ({"name": ""}, {"kind": "", "days_left": None}, []))
+
+    def test_no_upgrade_marker_for_current_cache_or_none(self):
+        self.assertEqual(run(["snapshot"], "stale-offline")["upgraded_from"], "")  # cache already at the new version
+        self.assertEqual(run(["snapshot"], "busy-day")["upgraded_from"], "")  # no cache at all (a new install)
+
+    def test_cache_from_a_newer_plugin_is_ignored(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fixture = os.path.join(tmp, "f")
+            shutil.copytree(os.path.join(FIX, "stale-offline"), fixture)
+            path = os.path.join(fixture, "cache.json")
+            with open(path) as handle:
+                doc = json.load(handle)
+            doc["version"] = 99
+            with open(path, "w") as handle:
+                json.dump(doc, handle)
+            e = dict(CLEAN_ENV, JOBHUNT_OMARCHY_FIXTURE=fixture)
+            out = json.loads(subprocess.run([sys.executable, HELPER, "snapshot"], env=e, capture_output=True, text=True, timeout=60).stdout)
+        self.assertEqual((out["state"], out["has_data"]), ("offline", False))  # no guess from a shape it does not know
+
+    def test_signed_out_and_missing_carry_the_empty_new_fields(self):
+        for name in ("signed-out", "cli-missing"):
+            d = run(["snapshot"], name)
+            self.assertEqual((d["account"], d["access"], d["applied"], d["interviewing"]), ({"name": ""}, {"kind": "", "days_left": None}, [], []), name)
+            self.assertEqual(d["plugin_version"], "0.2.0")
+
+
 class Prompts(unittest.TestCase):
     """Nothing from the network except a validated UUID may reach an agent prompt."""
 

@@ -26,14 +26,14 @@ step "no symlinks, no secrets-shaped files"
 if find . -name .git -prune -o -type l -print | grep -q .; then echo "symlink found"; fail=1; else echo ok; fi
 
 step "Omarchy component properties (every property assigned on a qs.Ui type must be declared there)"
-if [ -d /usr/share/omarchy/shell/Ui ]; then python3 tests/check_ui_props.py || fail=1; else echo "skipped: Omarchy Ui files not found"; fi
+if [ -d /usr/share/omarchy/shell/Ui ]; then python3 tests/check_ui_props.py Panel.qml PanelContent.qml || fail=1; else echo "skipped: Omarchy Ui files not found"; fi
 
 step "qmllint (errors and syntax only; Omarchy's own imports are linked from /usr/share/omarchy/shell)"
 QMLLINT=/usr/lib/qt6/bin/qmllint
 if [ -x "$QMLLINT" ] && [ -d /usr/share/omarchy/shell/Ui ]; then
   tmp=$(mktemp -d); mkdir -p "$tmp/qs"
   ln -s /usr/share/omarchy/shell/Commons "$tmp/qs/Commons"; ln -s /usr/share/omarchy/shell/Ui "$tmp/qs/Ui"
-  out=$("$QMLLINT" -I "$tmp" -I /usr/lib/qt6/qml Panel.qml Service.qml UrlLauncher.qml 2>&1)
+  out=$("$QMLLINT" -I "$tmp" -I /usr/lib/qt6/qml Panel.qml PanelContent.qml Service.qml UrlLauncher.qml 2>&1)
   rm -rf "$tmp"
   # Style.bar.* and bar.shell are untyped in Omarchy's singletons, so "missing-property" and
   # "unqualified" are expected noise (the GitHub plugin triggers the same). Anything else counts.
@@ -42,6 +42,26 @@ if [ -x "$QMLLINT" ] && [ -d /usr/share/omarchy/shell/Ui ]; then
 else
   echo "skipped: qmllint or Omarchy shell files not found"
 fi
+
+step "the real panel, rendered offscreen from fixtures (any QML warning fails; needs quickshell and the Omarchy shell files)"
+shots=$(mktemp -d)
+render() { tests/render_panel.sh "$@" >/dev/null || { echo "render failed: $1"; fail=1; }; }
+if command -v quickshell >/dev/null && [ -d /usr/share/omarchy/shell/Ui ]; then
+  render busy-day "wait:3500,shot:$shots/overview.png,today:1,shot:$shots/today.png,tab:board,shot:$shots/board.png,tab:docs,tab:page,bottom,shot:$shots/page.png"
+  JH_HIDE=1 render busy-day "wait:3500,shot:$shots/hidden.png"
+  render new-cli "wait:3500,shot:$shots/new.png,tab:board,shot:$shots/new-board.png"
+  render plan-read-only "wait:3500,shot:$shots/readonly.png"
+  render plan-subscribed "wait:3500,shot:$shots/subscribed.png"
+  render signed-out "wait:3500,shot:$shots/signed-out.png"
+  render cli-missing "wait:3500,shot:$shots/missing.png"
+  render stale-offline "wait:3500,shot:$shots/offline.png"
+  JH_WHATSNEW=1 render upgrade-from-0-1-0 "wait:3500,shot:$shots/upgrade.png"
+  JH_FIXTURE_MODE=1 render busy-day "wait:3500,quickadd,wait:1500,shot:$shots/quickadd.png,confirm,wait:1500,shot:$shots/saved.png"
+  n=$(ls "$shots" | wc -l); [ "$n" -ge 14 ] && echo "ok ($n images rendered, no QML warnings)" || { echo "only $n images rendered"; fail=1; }
+else
+  echo "skipped: quickshell or Omarchy shell files not found"
+fi
+rm -rf "$shots"
 
 echo
 [ "$fail" = 0 ] && echo "ALL CHECKS PASSED" || echo "SOME CHECKS FAILED"

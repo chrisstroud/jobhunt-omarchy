@@ -1,6 +1,19 @@
 # First install and what to look for
 
-Nothing in this plugin has been seen on screen yet: it was written and checked without opening the desktop. These steps are for the first install.
+The panel's content is now rendered offscreen in the checks (`tests/render_panel.sh`, run by `tests/run.sh`): the real Service, helper and panel in the shell's own components and your theme, in a plain window, under a temporary HOME, so nothing of your running bar or installed plugin is touched. That covers drawing and data; opening the panel from the bar, focus and placement still need a first look on a real desktop. These steps are for that first install.
+
+## Seeing the new states without the desktop
+
+```
+tests/render_panel.sh busy-day "wait:3500,shot:/tmp/overview.png,today:1,shot:/tmp/today.png,tab:board,shot:/tmp/board.png"
+JH_HIDE=1 tests/render_panel.sh busy-day "wait:3500,shot:/tmp/hidden.png"
+tests/render_panel.sh plan-read-only "wait:3500,shot:/tmp/read-only.png"
+tests/render_panel.sh new-cli "wait:3500,bottom,shot:/tmp/new-command.png"
+JH_WHATSNEW=1 tests/render_panel.sh upgrade-from-0-1-0 "wait:3500,shot:/tmp/whats-new.png"
+JH_FIXTURE_MODE=1 tests/render_panel.sh busy-day "wait:3500,quickadd,wait:1500,shot:/tmp/quick-add.png"
+```
+
+Fixtures worth knowing: `plan-subscribed`, `plan-read-only`, `plan-free`, `plan-review` (the footer's plan states), `new-cli` (a command at 0.2.0: no "Update the command line" line), and `upgrade-from-0-1-0` (a cache exactly as 0.1.0 wrote it). Any fixture without a `version.txt` answers `--version` with 0.1.2, the old command.
 
 ## 0. Before installing (no desktop needed)
 

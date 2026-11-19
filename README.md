@@ -12,13 +12,13 @@ Version 0.1.0 (first build, not yet listed anywhere).
 
 **Bar:** the JobHunt mark and one quiet number: how many things need you today (interviews and tasks due: tasks overdue or due today, interviews today or tomorrow). When nothing is due there is no number. The icon dims when it cannot show live data (not installed, signed out, offline). Right-click or middle-click refreshes.
 
-**Panel (click the icon):**
+**Panel (click the icon):** four tabs (Overview, Board, Docs, Page; keys 1 to 4), a permanent action row and an account footer.
 
-- **Today:** the due items, soonest first. Click one to open it on jobhunt.app. Tasks tied to a job have a button that hands a request to your own terminal agent ("Tailor my resume for this job"). The exact request is shown first and nothing is sent until you confirm. A short "Later this week" list follows.
-- **Momentum:** a year of recorded activity as a graph in the Omarchy theme's accent colour, with the plain totals (recorded actions and days with activity). JobHunt counts what was recorded and shows no scores or ranks.
-- **Pipeline:** counts for each stage JobHunt reports. Stage names are never built in.
-- **Actions:** "Save job from clipboard" (reads a web link from the clipboard, shows it, and saves only after you confirm), "What should I do next?" (a request to your agent), and "Open JobHunt".
-- **Hide company names:** for shared screens. Names are left out of the panel and the bar tooltip. (Requests to your agent never contain names.)
+- **Overview:** today in one line (click "+N today" for the rest, soonest first; click an item to open it on jobhunt.app; tasks tied to a job have a button that hands a request to your own terminal agent, "Tailor my resume for this job", whose exact text is shown first and which is sent only after you confirm). Then your **pipeline as columns** (the count for each active stage with the roles JobHunt already names under it; stage names are never built in), the **momentum** graph (a year of recorded activity in the Omarchy theme's accent colour, with month and weekday labels, a legend and the plain totals; JobHunt counts what was recorded and shows no scores or ranks), and one-line **Hunt Docs** and **Hunt Page** rows that open on jobhunt.app.
+- **Board, Docs, Page:** these tabs arrive with the next update of the command line; until the installed command can serve them, each shows one quiet line, "Update the command line", with the command to copy, and a link to the same page on jobhunt.app. Nothing is half drawn.
+- **Quick add:** saves a job from a web link on the clipboard. The link is shown first and nothing is saved until you press Save. In this version it saves jobs only; notes, tasks and contacts are shown as coming.
+- **Footer:** your name, your plan as a plain fact (Trial with days left, Subscribed, or Read-only, in which saving is switched off), whether the plugin is connected and when it last read JobHunt, "Manage" (your plan on jobhunt.app) and "Sign out".
+- **Hide company names:** the eye button beside the action row, for shared screens. Names are left out of the panel and the bar tooltip, everywhere. (Requests to your agent never contain names.)
 - **Setup:** if the command is missing, the panel shows the install command to copy. If you are signed out, it offers one-click "Sign in to JobHunt" (with a Cancel while it waits for your approval in the browser), and the terminal command as a fallback.
 
 The plugin never edits your agent's configuration. Requests to your agent go through `omarchy-agent --prompt "..."`, which starts your default agent, and Omarchy starts agents in their unattended modes. So no text that came from the network is ever put in a prompt: each request is fixed wording plus, at most, a job id that the plugin has checked is a UUID (for example "In JobHunt, tailor my resume for the job with id <uuid>. Show me the changes before saving."). No job title, company name or task text is included. The exact request is shown and needs your confirmation before anything launches.
@@ -65,6 +65,15 @@ npm rm -g jobhunt
 
 Nothing in your JobHunt account is deleted by any of these.
 
+## Upgrading from 0.1.0
+
+Nothing to do: update the plugin and open the panel.
+
+- **Your settings carry over.** Every setting 0.1.0 saved keeps its name and meaning. The plugin adds a `settingsVersion` key when it next saves one, and a missing key always means its default.
+- **Your saved data carries over.** The 0.1.0 cache is read, filled in where 0.2.0 has more fields, and rewritten at the next read. A cache from a newer plugin, or one the plugin cannot read, is ignored and the data is simply read again.
+- **The command line.** The plugin works with the command it already used (`jobhunt@0.1.2`): the Overview, the footer and Quick add (saving a job from a link) all run on it. The Board, Docs and Page tabs and role previews for stages the overview does not list need the updated command: those places show one quiet "Update the command line" line, with the command, never a broken view. The plugin reads the installed version with `jobhunt --version`; a version it cannot read counts as old.
+- **What's new.** After the update the panel shows one small "New in 0.2.0" note with a "Got it" button, once.
+
 ## Settings
 
 Open the widget's settings in Omarchy, or use the toggle in the panel.
@@ -80,9 +89,9 @@ Open the widget's settings in Omarchy, or use the toggle in the panel.
 ## Privacy
 
 - The plugin itself makes no network requests. The `jobhunt` command contacts jobhunt.app each time it runs (every refresh interval while the bar is up, unless you turn background refresh off, and when you open the panel).
-- Read: your overview (stage counts, tasks and interviews due in the next 7 days, with job and company names), and your activity counts for the last 365 days. Only fixed commands are run: `jobhunt status --json`, `jobhunt overview --json`, `jobhunt activity --json --days 365`, and, only after you confirm, `jobhunt jobs save <link> --json`.
-- The clipboard is read only when you press "Save job from clipboard". Its text is shown to you if it is a web link and is otherwise discarded; nothing is saved without a second click.
-- Stored: a short-lived cache at `~/.cache/jobhunt-omarchy/snapshot.json` (permissions 0600), used to show the last good data when you are offline. It holds the items listed above, is ignored after 24 hours, and is deleted when the plugin sees that you are signed out. Delete the file at any time. No passwords, tokens or keys are stored or handled; sign-in belongs to the `jobhunt` command.
+- Read: your overview (stage counts, tasks and interviews due in the next 7 days, with job and company names), and your activity counts for the last 365 days. Only fixed commands are run: `jobhunt --version` (to know what the installed command can do), `jobhunt status --json`, `jobhunt overview --json`, `jobhunt activity --json --days 365`, and, only after you confirm, `jobhunt jobs save <link> --json`. Your account name and plan state come from the same overview.
+- The clipboard is read only when you press "Quick add". Its text is shown to you if it is a web link and is otherwise discarded; nothing is saved without a second click.
+- Stored: a short-lived cache at `~/.cache/jobhunt-omarchy/snapshot.json` (permissions 0600), used to show the last good data when you are offline. It holds the items listed above (including your account name and plan state), is ignored after 24 hours, and is deleted when the plugin sees that you are signed out. Delete the file at any time. No passwords, tokens or keys are stored or handled; sign-in belongs to the `jobhunt` command.
 - Text from JobHunt is shown as plain text only. The only pages the plugin opens are on https://jobhunt.app.
 
 ## Troubleshooting
@@ -114,4 +123,4 @@ The code is MIT licensed (see LICENSE). The emblem is JobHunt's mark and is incl
 
 ## Development
 
-Python 3 standard library only. `tests/run.sh` runs the helper tests against every fixture in `fixtures/` (invented data), the Omarchy manifest validator, a check that every property used on an Omarchy component exists, and qmllint. `tests/make_fixtures.py` regenerates the fixtures.
+Python 3 standard library only. `tests/run.sh` runs the helper tests against every fixture in `fixtures/` (invented data), the Omarchy manifest validator, a check that every property used on an Omarchy component exists, qmllint, and a render of the real panel for several fixtures that fails on any QML warning. `tests/make_fixtures.py` regenerates the fixtures. To see the panel without your desktop (offscreen, under its own temporary HOME; it never touches your bar or your installed plugin): `tests/render_panel.sh busy-day "wait:3500,shot:/tmp/panel.png"`.

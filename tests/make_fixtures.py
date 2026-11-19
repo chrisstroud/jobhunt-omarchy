@@ -23,6 +23,7 @@ WRAPPER = """#!/bin/sh
 # login-fails file refuses to sign in, with the error code written in that file. Point the plugin's "JobHunt command path" setting at this
 # file to see a scenario.
 d=$(dirname "$0")
+if [ "$1" = "--version" ]; then cat "$d/version.txt" 2>/dev/null || echo 0.1.2; exit 0; fi
 no_auth='{"error":{"code":"authentication_required","status":401}}'
 if [ "$1" = auth ]; then
   case "$2" in
@@ -94,11 +95,28 @@ stages = [{"name": n, "type": t, "jobs": j, "final": fin} for n, t, j, fin in [
     ("Offer", "offer", 0, False), ("Closed", "closed", 4, True)]]
 
 
-def overview(tasks_over, tasks_soon, rounds):
+applied_roles = [
+    {"company": "Fabrikam Harbor", "title": "Product Lead", "stage_days": 4},
+    {"company": "Orchard & Pine", "title": "Design Lead", "stage_days": 6},
+    {"company": "Lumen Works", "title": "Senior Product Designer", "stage_days": 8}]
+
+
+def access_block(kind):
+    """The shapes services/journey_account_access.py produces (the `next` sentence is for an assistant: the plugin ignores it)."""
+    if kind == "trial":
+        return {"kind": "trial", "ends_at": "2026-11-22T08:00:00Z", "ends_on": "2026-11-22", "days_left": 5,
+                "next": "Written for an assistant; the plugin never shows it."}
+    return {"kind": kind, "ends_at": None, "ends_on": None, "days_left": None, "next": "Written for an assistant; the plugin never shows it."}
+
+
+def overview(tasks_over, tasks_soon, rounds, access="trial"):
     base = contract("overview.json")
     base.update({"today": "2026-11-17", "stages": stages, "jobs_total": 21,
                  "tasks": {"overdue": tasks_over, "due_in_next_7_days": tasks_soon, "complete": True},
-                 "interviews": {"rounds": rounds, "total": len(rounds)}})
+                 "interviews": {"rounds": rounds, "total": len(rounds)},
+                 "account": {"id": "00000000-0000-4000-8000-000000000001", "name": "Morgan Reyes"},
+                 "access": access_block(access),
+                 "applied": {"jobs": applied_roles, "total": 9}})
     return base
 
 
@@ -134,6 +152,12 @@ put("busy-day", {"status.json": ok_status, "overview.json": overview(busy_over, 
                  "jobs-save.json": saved, "clipboard.txt": "https://example.com/careers/research-lead\n"})
 put("nothing-due", {"status.json": ok_status, "overview.json": overview([], [], []), "activity.json": activity(2, 0.0, 120),
                     "jobs-save.json": saved, "clipboard.txt": "not a link, just some words"})
+# Plan states for the footer (same data, different overview.access) and the installed command's version.
+for kind in ("subscribed", "read_only", "free", "review"):
+    put("plan-" + kind.replace("_", "-"), {"status.json": ok_status, "overview.json": overview(busy_over, busy_soon, busy_rounds, kind), "activity.json": activity(1, 0.6),
+                                           "jobs-save.json": saved, "clipboard.txt": "https://example.com/careers/research-lead\n"})
+put("new-cli", {"status.json": ok_status, "overview.json": overview(busy_over, busy_soon, busy_rounds), "activity.json": activity(1, 0.6),
+                "jobs-save.json": saved, "clipboard.txt": "https://example.com/careers/research-lead\n"}, markers=[("version.txt", "0.2.0")])
 put("signed-out", {"status.json": contract("status-signed-out.json")})
 put("sign-in-fails", {"status.json": contract("status-signed-out.json")}, markers=[("login-fails", "access_denied")])
 # A code the panel has no sentence for: it shows the general one.
@@ -145,8 +169,12 @@ put("save-refused", {"status.json": ok_status, "error-save.json": contract("erro
 
 sys.path.insert(0, os.path.join(HERE, "..", "helper"))
 import jobhunt_omarchy as h
-cache = {"schema": 1, "fetched_at": "2026-11-17T09:00:00Z", "data": h.normalise_overview(overview(busy_over, busy_soon, busy_rounds)),
+cache = {"schema": 1, "version": 2, "fetched_at": "2026-11-17T09:00:00Z", "data": h.normalise_overview(overview(busy_over, busy_soon, busy_rounds)),
          "activity": h.normalise_activity(activity(1, 0.6), "2026-11-17")}
+old_data = {k: v for k, v in cache["data"].items() if k in ("today", "time_zone", "due", "pipeline", "jobs_total")}
+put("upgrade-from-0-1-0", {"status.json": ok_status, "overview.json": overview(busy_over, busy_soon, busy_rounds), "activity.json": activity(1, 0.6),
+                           "cache.json": {"schema": 1, "fetched_at": "2026-11-17T09:00:00Z", "data": old_data, "activity": cache["activity"]},
+                           "jobs-save.json": saved, "clipboard.txt": "https://example.com/careers/research-lead\n"})
 put("stale-offline", {"status.json": ok_status, "cache.json": cache, "error-overview.json": {"error": {"code": "unreachable", "status": 0}}, "error-overview.code": "7\n"})
 put("rate-limited", {"status.json": ok_status, "cache.json": cache,
                      "error-overview.json": {"error": {"code": "rate_limited", "status": 429, "retry_after_seconds": 120}}, "error-overview.code": "6\n"})

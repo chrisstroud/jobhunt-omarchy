@@ -7,6 +7,7 @@
 # login-fails file refuses to sign in, with the error code written in that file. Point the plugin's "JobHunt command path" setting at this
 # file to see a scenario.
 d=$(dirname "$0")
+if [ "$1" = "--version" ]; then cat "$d/version.txt" 2>/dev/null || echo 0.1.2; exit 0; fi
 no_auth='{"error":{"code":"authentication_required","status":401}}'
 if [ "$1" = auth ]; then
   case "$2" in

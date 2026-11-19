@@ -35,6 +35,17 @@ from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
 SCHEMA = 1
+PLUGIN_VERSION = "0.2.0"
+# The cache file's own version (separate from SCHEMA, which the QML checks). 1 = written by plugin 0.1.0.
+CACHE_VERSION = 2
+# The first command-line version with the commands the Board, Docs, Page, search and Quick Add views read.
+# One place, so the check can change (a version number today; a capability answer from the command later).
+CLI_FEATURE_MIN = (0, 2, 0)
+CLI_FEATURES = ("board", "docs", "page", "find", "add")
+CLI_VERSION_RE = re.compile(r"^v?(\d{1,4})\.(\d{1,4})\.(\d{1,4})(?:[-+][0-9A-Za-z.-]{0,40})?$")
+CLI_VERSION_TIMEOUT = 5
+ACCESS_KINDS = ("free", "trial", "subscribed", "read_only", "review")
+MAX_ROLES = 6
 MAX_OUTPUT = 1024 * 1024
 CLI_TIMEOUT = 20
 CLIP_TIMEOUT = 3
@@ -194,7 +205,28 @@ def read_cache(now):
         return None
     if not isinstance(doc.get("data"), dict):
         return None
+    version = doc.get("version")
+    if isinstance(version, bool) or not isinstance(version, int):
+        version = 1  # written by plugin 0.1.0
+    if version > CACHE_VERSION:
+        return None  # written by a newer plugin: ignore it rather than guess
+    doc["data"] = with_defaults(doc["data"])
     return doc
+
+
+def cache_written_by_older_plugin():
+    """True when a cache file from plugin 0.1.0 is on disk, however old it is: the person has updated.
+    Read by the first snapshot after the update; the panel keeps the "what's new" line until it is dismissed."""
+    try:
+        with open(cache_path(), encoding="utf-8") as handle:
+            raw = handle.read(MAX_OUTPUT + 1)
+        doc = json.loads(raw) if len(raw) <= MAX_OUTPUT else None
+    except (OSError, ValueError):
+        return False
+    if not isinstance(doc, dict) or doc.get("schema") != SCHEMA:
+        return False
+    version = doc.get("version")
+    return isinstance(version, bool) or not isinstance(version, int) or version < CACHE_VERSION
 
 
 def write_cache(now, data, activity):
@@ -206,7 +238,7 @@ def write_cache(now, data, activity):
         tmp = path + ".tmp"
         fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            json.dump({"schema": SCHEMA, "fetched_at": iso(now), "data": data, "activity": activity}, handle)
+            json.dump({"schema": SCHEMA, "version": CACHE_VERSION, "fetched_at": iso(now), "data": data, "activity": activity}, handle)
         os.replace(tmp, path)
     except OSError:
         pass  # a cache that cannot be written is not worth a message
@@ -240,6 +272,36 @@ def find_cli(explicit=""):
         if os.path.isfile(path) and os.access(path, os.X_OK):
             return path
     return ""
+
+
+def parse_cli_version(text):
+    match = CLI_VERSION_RE.fullmatch((text or "").strip())
+    return (int(match.group(1)), int(match.group(2)), int(match.group(3))) if match else None
+
+
+def cli_info(cli):
+    """The installed command's version and what it can do. A version that cannot be read counts as old:
+    nothing then promises a view the command may not have. Fixture mode reads version.txt (default 0.1.2)."""
+    if fixture_dir():
+        text = read_small(os.path.join(fixture_dir(), "version.txt"))
+        text = "0.1.2" if text is None else text
+    elif cli:
+        text = ""
+        try:
+            proc = subprocess.run([cli, "--version"], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                  stderr=subprocess.DEVNULL, timeout=CLI_VERSION_TIMEOUT, env=dict(os.environ, NO_COLOR="1"), close_fds=True)
+            if proc.returncode == 0:
+                text = proc.stdout[:64].decode("utf-8", "replace")
+        except (OSError, subprocess.SubprocessError):
+            text = ""
+    else:
+        text = ""
+    parsed = parse_cli_version(text)
+    new = parsed is not None and parsed >= CLI_FEATURE_MIN
+    return {
+        "version": ".".join(str(part) for part in parsed) if parsed else "",
+        "features": {name: new for name in CLI_FEATURES},
+    }
 
 
 FIXTURE_FILES = {"status": "status.json", "overview": "overview.json", "activity": "activity.json", "save": "jobs-save.json"}
@@ -469,13 +531,68 @@ def normalise_overview(doc):
             "final": stage.get("final") is True,
         })
     jobs_total = to_count(doc.get("jobs_total")) or sum(stage["jobs"] for stage in pipeline)
+
+    # Roles the overview already names: Applied jobs (longest in stage first) and the jobs with a
+    # live interview round. Other stages need the command's `board` view (CLI 0.2.0).
+    applied = []
+    applied_doc = doc.get("applied") if isinstance(doc.get("applied"), dict) else {}
+    for item in (applied_doc.get("jobs") or [])[:MAX_ROLES]:
+        if isinstance(item, dict) and (clean(item.get("title"), 120) or clean(item.get("company"), 80)):
+            applied.append({
+                "company": clean(item.get("company"), 80),
+                "title": clean(item.get("title"), 120),
+                "days": to_count(item.get("stage_days"), 100000) if isinstance(item.get("stage_days"), (int, float)) else -1,
+            })
+    interviewing = []
+    seen = set()
+    for row in rows:
+        if row["kind"] != "interview":
+            continue
+        key = (row["company"], row["job_title"])
+        if key in seen or len(interviewing) >= MAX_ROLES:
+            continue
+        seen.add(key)
+        interviewing.append({"company": row["company"], "title": row["job_title"], "round": row["title"], "on": row["on"], "days": row["days"], "time": row["time"]})
+
+    account = doc.get("account") if isinstance(doc.get("account"), dict) else {}
+    hunt = doc.get("hunt") if isinstance(doc.get("hunt"), dict) else {}
+    resume = doc.get("resume") if isinstance(doc.get("resume"), dict) else {}
     return {
         "today": today.isoformat(),
         "time_zone": zone,
         "due": rows,
         "pipeline": pipeline,
         "jobs_total": jobs_total,
+        "account": {"name": clean(account.get("name"), 80)},
+        "access": normalise_access(doc.get("access")),
+        "hunt": {"name": clean(hunt.get("name"), 80)},
+        "resume": {"name": clean(resume.get("name"), 80)},
+        "applied": applied,
+        "interviewing": interviewing,
     }
+
+
+def normalise_access(value):
+    """overview.access -> what the footer needs. `next` is written for an assistant and never shown."""
+    access = value if isinstance(value, dict) else {}
+    kind = clean(access.get("kind"), 20).lower()
+    if kind not in ACCESS_KINDS:
+        kind = ""  # an unknown plan state shows no chip rather than a guess
+    days = access.get("days_left")
+    days_left = to_count(days, 100000) if kind == "trial" and isinstance(days, (int, float)) and not isinstance(days, bool) else None
+    return {"kind": kind, "days_left": days_left}
+
+
+def with_defaults(data):
+    """A cache written by plugin 0.1.0 has none of the account fields: fill them, keep the rest."""
+    out = dict(data)
+    out.setdefault("account", {"name": ""})
+    out.setdefault("access", {"kind": "", "days_left": None})
+    out.setdefault("hunt", {"name": ""})
+    out.setdefault("resume", {"name": ""})
+    out.setdefault("applied", [])
+    out.setdefault("interviewing", [])
+    return out
 
 
 def normalise_activity(doc, today_hint):
@@ -539,6 +656,15 @@ def empty_document(state, message, now):
         "jobs_total": 0,
         "momentum": {"available": False, "window_days": 0, "recorded_actions": 0, "active_days": 0, "weeks": []},
         "retry_after_seconds": 0,
+        "plugin_version": PLUGIN_VERSION,
+        "upgraded_from": "",
+        "cli": {"version": "", "features": {name: False for name in CLI_FEATURES}},
+        "account": {"name": ""},
+        "access": {"kind": "", "days_left": None},
+        "hunt": {"name": ""},
+        "resume": {"name": ""},
+        "applied": [],
+        "interviewing": [],
     }
 
 
@@ -575,6 +701,13 @@ def render(state, message, data, activity, fetched, stale, hide, now):
         "due_count": sum(1 for row in due if row["bucket"] == "today"),
         "pipeline": data["pipeline"],
         "jobs_total": data["jobs_total"],
+        "account": data["account"],
+        "access": data["access"],
+        "hunt": data["hunt"],
+        "resume": data["resume"],
+        # Company names never reach the screen when the person hides them.
+        "applied": [dict(role, company="") if hide else role for role in data["applied"]],
+        "interviewing": [dict(role, company="") if hide else role for role in data["interviewing"]],
     })
     if activity:
         doc["momentum"] = dict(activity, available=True)
@@ -591,6 +724,17 @@ STATE_MESSAGES = {
 
 
 def snapshot(hide, cli_arg):
+    """The one document the panel reads, plus what the update needs: whether this is the first read after
+    plugin 0.1.0, and what the installed command can do."""
+    upgraded = cache_written_by_older_plugin()  # before this read replaces the cache
+    doc = snapshot_state(hide, cli_arg)
+    doc["upgraded_from"] = "0.1.0" if upgraded else ""
+    if doc.get("state") != "cli_missing":
+        doc["cli"] = cli_info("" if fixture_dir() else find_cli(cli_arg))
+    return doc
+
+
+def snapshot_state(hide, cli_arg):
     now = now_utc()
     cli = "" if fixture_dir() else find_cli(cli_arg)
     missing = empty_document("cli_missing", "The JobHunt command is not installed.", now)
